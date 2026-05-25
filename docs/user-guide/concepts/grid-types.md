@@ -67,7 +67,3 @@ grid keeps 36 leaf cells across levels 0/1/2.
 
 See [Building grids](../grid-building.md) for the display modes and
 [DFN vs LGR](dfn-vs-lgr.md) for why DFN is handled separately.
-
-??? quote "Manual references (STARS)"
-    `CONVERT-TO-CORNER-POINT_ConvertCartesianGridToCornerPoint.htm`,
-    `REFINE_LocalRefinedGrid.htm`.
