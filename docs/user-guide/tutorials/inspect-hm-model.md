@@ -73,20 +73,40 @@ PRES range: 21073.6 28643.4
     `map_prop` returns a labelled DataFrame (one column per keyword × time). For
     a single keyword/time, `.iloc[:, 0].to_numpy()` is the cell array.
 
-## 3. A display helper (depth-up + vertical exaggeration)
+## 3. Vertical exaggeration and depth-up display
 
-This model stores Z as **depth** (positive, ~3000 m) and is wide but thin. For
-nice 3D scenes, flip to Z-up and exaggerate the vertical. Keep this for
-*display only* — never for calculations.
+This model stores Z as **depth** (positive, ~3000 m over a ~4 km footprint that
+is only ~180 m thick) — at true scale it looks like a flat sheet, so 3D scenes
+usually exaggerate the vertical and flip depth so shallow is up.
+
+The simplest, native way is **`Plotter.set_scale`**, which scales only the
+*view*. Your data stays in true coordinates, so slicing, mapping and export are
+unaffected — no copy, no point-array edits:
 
 ```python
-def display_grid(grid, exaggerate=8.0):
-    """Return a depth-up, vertically exaggerated copy for visualization."""
-    disp = grid.copy(deep=True)
-    pts = np.asarray(disp.points).copy()
-    pts[:, 2] = (pts[:, 2].max() - pts[:, 2]) * exaggerate
-    disp.points = pts
-    return disp
+plotter.add_mesh(grid, scalars="PRES", cmap="turbo")
+plotter.set_scale(zscale=8)                      # 8x vertical exaggeration (display only)
+
+# each axis scales independently; a negative value flips that axis,
+# so a negative zscale turns positive-down depth into "up":
+plotter.set_scale(xscale=1, yscale=1, zscale=-8)
+```
+
+The same field at true scale (flat) → moderate → strong exaggeration:
+
+![Vertical exaggeration](../../assets/images/guide_exaggeration.png)
+
+When you only want to *look* at the grid, `set_scale` is all you need. A few
+sections below also **slice and contour** the geometry, so they build a display
+copy once — again with PyVista's native scaling (`scale` + `flip_z`), not manual
+point math:
+
+```python
+def display_grid(grid, exaggerate=6.0):
+    """Depth-up, vertically exaggerated copy — for display only, not for math."""
+    return grid.scale((1, 1, exaggerate), inplace=False).flip_z(inplace=False)
+
+disp = display_grid(grid)
 ```
 
 See [Coordinate system & display scale](../concepts/coordinate-system.md) for
@@ -98,16 +118,15 @@ the rationale.
 import pyvista as pv
 # pv.OFF_SCREEN = True   # uncomment on a headless server
 
-disp = display_grid(grid)
-
 plotter = pv.Plotter(window_size=(1200, 820))
 plotter.set_background("white")
 plotter.add_mesh(
-    disp,
+    grid,
     scalars="PRES",
     cmap="turbo",
     scalar_bar_args={"title": "PRES (kPa)", "vertical": True},
 )
+plotter.set_scale(zscale=-8)       # depth-up + 8x exaggeration (display only)
 plotter.add_axes()
 plotter.camera_position = "iso"
 plotter.show()                     # or: plotter.screenshot("pres_3d.png")

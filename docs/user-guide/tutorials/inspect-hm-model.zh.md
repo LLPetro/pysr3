@@ -62,18 +62,33 @@ PRES range: 21073.6 28643.4
 !!! tip "`.iloc[:, 0]`"
     `map_prop` 返回带标签的 DataFrame（每个关键字×时间对应一列）。对于单个关键字/时间步，`.iloc[:, 0].to_numpy()` 即为单元数组。
 
-## 3. 显示辅助函数（depth-up + 垂向夸张）
+## 3. 垂向夸张与 depth-up 显示
 
-该模型以**深度**形式存储 Z 值（正值，约 3000 m），且横向范围远大于纵向厚度。为获得良好的三维场景效果，需翻转为 Z 向上并对垂向进行夸张处理。此操作**仅用于显示**，切勿用于计算。
+该模型以**深度**形式存储 Z 值（正值，约 3000 m；横向约 4 km，而厚度仅约 180 m）——在真实比例下看起来像一张平板，因此三维场景通常会对垂向进行夸张，并翻转深度使浅部朝上。
+
+最简单的原生方式是 **`Plotter.set_scale`**，它只缩放*视图*。数据仍保持真实坐标，因此切片、映射和导出都不受影响——无需复制，也无需改写点数组：
 
 ```python
-def display_grid(grid, exaggerate=8.0):
-    """Return a depth-up, vertically exaggerated copy for visualization."""
-    disp = grid.copy(deep=True)
-    pts = np.asarray(disp.points).copy()
-    pts[:, 2] = (pts[:, 2].max() - pts[:, 2]) * exaggerate
-    disp.points = pts
-    return disp
+plotter.add_mesh(grid, scalars="PRES", cmap="turbo")
+plotter.set_scale(zscale=8)                      # 8x vertical exaggeration (display only)
+
+# each axis scales independently; a negative value flips that axis,
+# so a negative zscale turns positive-down depth into "up":
+plotter.set_scale(xscale=1, yscale=1, zscale=-8)
+```
+
+同一属性在真实比例（平坦）→ 中等夸张 → 强夸张下的对比：
+
+![垂向夸张](../../assets/images/guide_exaggeration.png)
+
+如果只是想*查看*网格，`set_scale` 已足够。下文有几节还会**切片和绘制等值线**，因此会构建一份显示副本——同样使用 PyVista 的原生缩放（`scale` + `flip_z`），而非手动改写点坐标：
+
+```python
+def display_grid(grid, exaggerate=6.0):
+    """Depth-up, vertically exaggerated copy — for display only, not for math."""
+    return grid.scale((1, 1, exaggerate), inplace=False).flip_z(inplace=False)
+
+disp = display_grid(grid)
 ```
 
 详见[坐标系与显示比例](../concepts/coordinate-system.md)中的原理说明。
@@ -84,16 +99,15 @@ def display_grid(grid, exaggerate=8.0):
 import pyvista as pv
 # pv.OFF_SCREEN = True   # uncomment on a headless server
 
-disp = display_grid(grid)
-
 plotter = pv.Plotter(window_size=(1200, 820))
 plotter.set_background("white")
 plotter.add_mesh(
-    disp,
+    grid,
     scalars="PRES",
     cmap="turbo",
     scalar_bar_args={"title": "PRES (kPa)", "vertical": True},
 )
+plotter.set_scale(zscale=-8)       # depth-up + 8x exaggeration (display only)
 plotter.add_axes()
 plotter.camera_position = "iso"
 plotter.show()                     # or: plotter.screenshot("pres_3d.png")
