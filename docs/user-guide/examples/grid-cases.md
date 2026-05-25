@@ -1,7 +1,7 @@
 # Grid cases
 
 Copy-paste snippets for every supported grid family, using the real STARS
-2025.20 SR3 files bundled under `test/`.
+SR3 files bundled under `test/`.
 
 ## Cartesian
 

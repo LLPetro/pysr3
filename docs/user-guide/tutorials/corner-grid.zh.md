@@ -18,7 +18,7 @@ print(grid.n_cells)
 
 ## 转换为角点的案例
 
-此案例来源于 STARS 2025.20 模板，其 DAT 文件包含：
+此案例来源于 STARS 模板，其 DAT 文件包含：
 
 ```text
 *GRID *CART

@@ -18,7 +18,7 @@ print(grid.n_cells)
 
 ## The convert-to-corner case
 
-This case comes from a STARS 2025.20 template whose DAT file contains:
+This case comes from a STARS template whose DAT file contains:
 
 ```text
 *GRID *CART

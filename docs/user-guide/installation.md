@@ -61,5 +61,5 @@ xvfb-run -a python tools/export_case_assets.py
 ```
 
 !!! tip "Test data is included"
-    The repository ships real STARS 2025.20 SR3 files under `test/`, so every
+    The repository ships real STARS SR3 files under `test/`, so every
     example in this guide runs without extra downloads.

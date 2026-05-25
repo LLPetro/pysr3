@@ -44,7 +44,7 @@ hide:
 <div class="feature-card" markdown>
 ### :material-chart-line: 井与时序
 以长格式 DataFrame 读取 `WELLS`、`LAYERS`、`GROUPS`、`SECTORS` 和 `SPECIAL HISTORY`，
-已针对真实 STARS 2025.20 输出进行验证。
+已针对真实 STARS 输出进行验证。
 </div>
 
 </div>

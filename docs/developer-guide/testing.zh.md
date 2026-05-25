@@ -1,10 +1,10 @@
 # 测试与验证
 
-pysr3 在三个层面进行验证：快速单元测试、基于**真实 STARS 2025.20 SR3 文件**的集成测试，以及用于重构的基线核验框架。
+pysr3 在三个层面进行验证：快速单元测试、基于**真实 STARS SR3 文件**的集成测试，以及用于重构的基线核验框架。
 
 ```mermaid
 flowchart LR
-    A[DAT] --> B[STARS 2025.20]
+    A[DAT] --> B[STARS]
     B --> C[SR3]
     C --> D[SR3Indexer]
     D --> E[GridBuilder]

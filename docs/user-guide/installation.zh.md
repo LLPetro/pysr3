@@ -59,5 +59,5 @@ xvfb-run -a python tools/export_case_assets.py
 ```
 
 !!! tip "测试数据已包含在内"
-    仓库在 `test/` 目录下附带了真实的 STARS 2025.20 SR3 文件，
+    仓库在 `test/` 目录下附带了真实的 STARS SR3 文件，
     因此本指南中的每个示例无需额外下载即可运行。

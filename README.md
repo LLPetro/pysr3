@@ -42,5 +42,26 @@ with SR3Indexer("model.sr3") as ix:
 SR3 case; `tools/export_timeseries_assets.py` exports well/time-series CSVs. Run
 the test suite with `pytest`.
 
-Full documentation (architecture, concepts, tutorials) lives in [`docs/`](docs)
-and builds with `mkdocs`.
+Full documentation (architecture, concepts, tutorials) is published at
+**<https://llpetro.github.io/pysr3/>** and lives in [`docs/`](docs) (builds with
+`mkdocs`).
+
+## License
+
+Released under the [MIT License](LICENSE).
+
+## Citation
+
+If you use pysr3 in your work, please cite it:
+
+```bibtex
+@software{pysr3,
+  title  = {{pysr3: a third-party reader, grid builder, and property mapper for CMG SR3 files}},
+  author = {{pysr3 contributors}},
+  year   = {2026},
+  url    = {https://github.com/LLPetro/pysr3}
+}
+```
+
+A machine-readable [`CITATION.cff`](CITATION.cff) is also provided, so GitHub
+shows a "Cite this repository" button.

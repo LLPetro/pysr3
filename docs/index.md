@@ -46,7 +46,7 @@ with optional bottom-up LGR aggregation, returned as tidy DataFrames.
 <div class="feature-card" markdown>
 ### :material-chart-line: Wells & time series
 Read `WELLS`, `LAYERS`, `GROUPS`, `SECTORS`, and `SPECIAL HISTORY` as long-form
-DataFrames, validated against real STARS 2025.20 output.
+DataFrames, validated against real STARS output.
 </div>
 
 </div>

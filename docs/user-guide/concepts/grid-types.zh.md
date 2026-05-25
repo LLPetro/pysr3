@@ -56,6 +56,6 @@ LGR 来自 `*REFINE`。pysr3 从父指针（`ICSTPB`）和段偏移（`IGNTNC`�
 
 显示模式详见[网格构建](../grid-building.md)，DFN 单独处理的原因详见 [DFN vs LGR](dfn-vs-lgr.md)。
 
-??? quote "手册参考（STARS 2025.20）"
+??? quote "手册参考（STARS）"
     `CONVERT-TO-CORNER-POINT_ConvertCartesianGridToCornerPoint.htm`,
     `REFINE_LocalRefinedGrid.htm`.

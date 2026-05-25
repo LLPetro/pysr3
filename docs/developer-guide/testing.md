@@ -1,11 +1,11 @@
 # Testing & validation
 
 pysr3 is validated at three levels: fast unit tests, integration against **real
-STARS 2025.20 SR3 files**, and a golden behavior harness for refactors.
+STARS SR3 files**, and a golden behavior harness for refactors.
 
 ```mermaid
 flowchart LR
-    A[DAT] --> B[STARS 2025.20]
+    A[DAT] --> B[STARS]
     B --> C[SR3]
     C --> D[SR3Indexer]
     D --> E[GridBuilder]
