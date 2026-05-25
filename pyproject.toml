@@ -9,7 +9,7 @@ description = "Third-party reader and visualizer for CMG SR3 files"
 readme = "README.md"
 requires-python = ">=3.9"
 license = { text = "MIT" }
-authors = [{ name = "pysr3 contributors" }]
+authors = [{ name = "LLPetro", email = "LL.Petro@outlook.com" }]
 keywords = ["CMG", "SR3", "reservoir", "grid", "pyvista", "visualization"]
 dependencies = [
     "numpy>=1.21",

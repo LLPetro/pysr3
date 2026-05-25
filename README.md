@@ -57,7 +57,7 @@ If you use pysr3 in your work, please cite it:
 ```bibtex
 @software{pysr3,
   title  = {{pysr3: a third-party reader, grid builder, and property mapper for CMG SR3 files}},
-  author = {{pysr3 contributors}},
+  author = {{LLPetro}},
   year   = {2026},
   url    = {https://github.com/LLPetro/pysr3}
 }
