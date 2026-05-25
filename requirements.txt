@@ -1,0 +1,5 @@
+# Runtime dependencies for pysr3 (see pyproject.toml for authoritative versions).
+numpy>=1.21
+h5py>=3.0
+pyvista>=0.40
+pandas>=1.3

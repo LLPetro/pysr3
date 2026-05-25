@@ -1,0 +1,46 @@
+# pysr3
+
+Third-party reader and visualizer for **CMG SR3** files.
+
+The codebase follows a three-layer architecture (read → build geometry → map
+properties), so callers depend only on a small public surface:
+
+| Layer | Class | Responsibility |
+|---|---|---|
+| Access | `SR3Indexer` | Open HDF5, index metadata/time-series, hand out raw numpy arrays. |
+| Geometry | `GridBuilder` | Convert SR3 grid arrays into a PyVista `UnstructuredGrid`. |
+| Properties | `DataMapper` | Map SR3 property arrays onto grid cells / DataFrames. |
+
+Grid construction is split into one strategy per family under
+[`pysr3/grid/`](pysr3/grid) (`Cartesian`, `CornerPoint`, `Radial`) plus embedded
+DFN surface builders, all sharing the reusable helpers in
+`pysr3/grid/geometry.py`.
+
+## Install
+
+```bash
+pip install -e .          # or: pip install -r requirements.txt
+```
+
+## Quick start
+
+```python
+from pysr3 import SR3Indexer, GridBuilder, DataMapper
+
+with SR3Indexer("model.sr3") as ix:
+    grid = GridBuilder(ix).build(grid_type="CornerPoint", grid_mode="mixed")
+    df = DataMapper(ix).map_prop(grid, "PRES", time_step=0)
+    grid.save("grid.vtu")
+```
+
+`GridBuilder.build` accepts `grid_type` in
+`available_grid_types()` (`"Cartesian"`, `"CornerPoint"`, `"Radial"`).
+
+## Validation / examples
+
+`tools/export_case_assets.py` rebuilds VTU + PNG assets for every registered
+SR3 case; `tools/export_timeseries_assets.py` exports well/time-series CSVs. Run
+the test suite with `pytest`.
+
+Full documentation (architecture, concepts, tutorials) lives in [`docs/`](docs)
+and builds with `mkdocs`.

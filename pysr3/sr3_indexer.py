@@ -1,0 +1,839 @@
+#!/usr/bin/env python3
+"""
+SR3 Indexer (v2.4) - Core Data Accessor for CMG SR3 Files
+Implements the "Single Source of Truth" architecture.
+
+Features:
+- Independent HDF5 access (h5py)
+- STARS component model support
+- Smart variable name resolution
+- Pandas integration for well data (Optimized)
+- Decoupled grid data fetching
+- Robust metadata parsing (Case-insensitive field matching)
+"""
+
+import logging
+import bisect
+import numpy as np
+import h5py
+import re
+from typing import Dict, List, Optional, Any, Union, Tuple
+from pathlib import Path
+
+# Optional Pandas support
+try:
+    import pandas as pd
+    HAS_PANDAS = True
+except ImportError:
+    HAS_PANDAS = False
+
+logger = logging.getLogger("pysr3.indexer")
+
+class SR3Indexer:
+    """
+    The central data accessor for CMG SR3 files.
+    
+    Responsibilities:
+    1. Manage HDF5 file handle (Open/Close).
+    2. Index metadata, components, units, and variable names.
+    3. Fetch raw data arrays (Grid, Properties) without geometric interpretation.
+    4. Fetch and format Well data.
+    """
+    
+    def __init__(self, file_path: str, list_props_ts: Optional[int] = 0):
+        """
+        Initialize the SR3 Indexer.
+        
+        Args:
+            file_path: Path to the .sr3 file.
+            list_props_ts: If set (int), only index properties for the first N timesteps 
+                           to save time on large files. Default is 0 (first step only).
+                           Set to None to index all steps.
+        """
+        self.file_path = file_path
+        self.handle: Optional[h5py.File] = None
+        
+        # --- Metadata Stores ---
+        self.metadata: Dict[str, Any] = {}
+        self.components: Dict[str, List[str]] = {
+            'all': [],
+            'fluid': [],   # numy
+            'liquid': [],  # numx
+            'aqueous': [], # numw
+            'solid': [],   # ncomp - numy
+            'dimensions': (0, 0, 0, 0) # (ncomp, numy, numx, numw)
+        }
+        
+        self.units: Dict[int, Dict[str, str]] = {}  # ID -> {output, internal, dimension}
+        self.name_records: Dict[str, Dict] = {}     # Keyword -> Info Dict
+        
+        # --- Time & Grid Index ---
+        self.time_index: Dict[str, Any] = {
+            'spatial_time_indices': [], # List of int
+            'time_to_offset': {},          # step_idx -> days (float)
+            'time_to_date': {}         # step_idx -> date string
+        }
+        
+        self.spatial_props: Dict[str, Any] = {
+            'timesteps': [],        # List of str keys ("000000")
+            'properties_by_ts': {}, # step_idx -> List[str]
+            'grid_timesteps': []    # List of int containing GRID
+        }
+        
+        # --- Wells ---
+        self.wells: Dict[str, Any] = {
+            'names': [],
+            'variables': [],
+            'timesteps': [],
+            'shape': (0, 0, 0) # SR3 layout: (n_times, n_vars, n_wells)
+        }
+
+        # --- Generic TimeSeries ---
+        self.timeseries: Dict[str, Dict[str, Any]] = {}
+
+        # --- Initialization Sequence ---
+        self._open_file()
+        try:
+            self._load_metadata()
+            self._load_components()
+            self._load_units()
+            self._load_name_records()
+            self._load_time_index()
+            self._index_spatial_properties(list_props_ts=list_props_ts)
+            self._detect_grid_timesteps()
+            self._load_timeseries_index()
+            self._load_wells()
+        except Exception as e:
+            logger.error(f"Initialization failed for {file_path}: {e}")
+            self.close()
+            raise
+
+    def _open_file(self):
+        """Open HDF5 file in read-only mode."""
+        if not Path(self.file_path).exists():
+            raise FileNotFoundError(f"SR3 file not found: {self.file_path}")
+        try:
+            self.handle = h5py.File(self.file_path, 'r')
+        except Exception as e:
+            raise IOError(f"Failed to open SR3 file: {e}")
+
+    def close(self):
+        """Close the HDF5 file handle."""
+        if self.handle:
+            self.handle.close()
+            self.handle = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        self.close()
+
+    def _decode_bytes(self, data: Any) -> str:
+        """Helper to decode bytes to string."""
+        if isinstance(data, bytes):
+            return data.decode('utf-8', errors='ignore').strip().strip('"').strip("'")
+        return str(data).strip()
+
+    @staticmethod
+    def _pick_dtype_field(dtype_names: Tuple[str, ...], candidates: List[str]) -> Optional[str]:
+        """Pick a column name by candidates (case-insensitive)."""
+        for cand in candidates:
+            for name in dtype_names:
+                if name.lower() == cand.lower():
+                    return name
+        return None
+
+    # --- Loading Methods ---
+
+    def _load_metadata(self):
+        """Load attributes from Root and /General."""
+        # 1. Root Attributes
+        for k, v in self.handle.attrs.items():
+            self.metadata[k] = self._decode_bytes(v)
+
+        # 2. General Group Attributes (if any)
+        if 'General' in self.handle:
+            gen = self.handle['General']
+            for k, v in gen.attrs.items():
+                self.metadata[k] = self._decode_bytes(v)
+            
+        # Format and Log Metadata
+        log_msg = ["Loaded SR3 Metadata:"]
+        
+        # 1. Standard Fields
+        std_keys = ['RunDate', 'SR3 Version', 'Simulator Name', 'Simulator Version']
+        for k in std_keys:
+            val = self.metadata.get(k, "N/A")
+            log_msg.append(f"  {k}: {val}")
+            
+        # 2. Titles (Merge Title 1, Title 2, etc.)
+        titles = []
+        for k, v in self.metadata.items():
+            if k.startswith("Title"):
+                titles.append((k, v))
+        # Sort by key to ensure Title 1, Title 2 order
+        titles.sort(key=lambda x: x[0]) 
+        if titles:
+            # Merge with newlines as requested
+            full_title = "\n    ".join([t[1] for t in titles])
+            log_msg.append(f"  Title:\n    {full_title}")
+            
+        # 3. Case ID
+        if 'Case ID' in self.metadata:
+            log_msg.append(f"  Case ID: {self.metadata['Case ID']}")
+            
+        logger.info("\n".join(log_msg))
+
+    def _load_components(self):
+        """
+        Load component info from /General/ComponentTable.
+        Implements STARS logic:
+        ncomp: Total
+        numy: Fluid (Oil/Gas/Water phases)
+        numx: Liquid (Oil/Water phases)
+        numw: Aqueous
+        """
+        if 'General/ComponentTable' not in self.handle:
+            return
+
+        ct = self.handle['General/ComponentTable']
+        
+        # Parse DIMENSIONS
+        dims = (0, 0, 0, 0)
+        if 'DIMENSIONS' in ct.attrs:
+            d_str = self._decode_bytes(ct.attrs['DIMENSIONS'])
+            try:
+                # "4 3 2 1" -> [4, 3, 2, 1]
+                parts = [int(x) for x in d_str.split()]
+                if len(parts) >= 4:
+                    dims = tuple(parts[:4])
+            except ValueError:
+                logger.warning(f"Failed to parse DIMENSIONS: {d_str}")
+        
+        self.components['dimensions'] = dims
+        ncomp, numy, numx, numw = dims
+        
+        # Read Component Names
+        try:
+            raw_data = ct[()]
+            all_comps = []
+            
+            # Check if structured
+            if raw_data.dtype.names:
+                name_col = self._pick_dtype_field(raw_data.dtype.names, ["Name"])
+                name_col = name_col or raw_data.dtype.names[0]
+                for row in raw_data:
+                    all_comps.append(self._decode_bytes(row[name_col]))
+            else:
+                # Simple array
+                for val in raw_data:
+                    all_comps.append(self._decode_bytes(val))
+            
+            self.components['all'] = all_comps
+            
+            # Check Simulator Name
+            sim_name = self.metadata.get('Simulator Name', '').upper()
+            
+            if 'STARS' not in sim_name and 'SR3' not in sim_name: # SR3 might be generic
+                 logger.warning(f"Simulator '{sim_name}' is not STARS. Applying STARS component logic by default, but verify results.")
+
+            # Categorize based on STARS logic (Applied to all for now)
+            # Fluid: First numy components
+            self.components['fluid'] = all_comps[:numy]
+            
+            # Liquid: First numx components (Subset of fluid)
+            self.components['liquid'] = all_comps[:numx]
+            
+            # Aqueous: First numw components (Subset of liquid/fluid)
+            self.components['aqueous'] = all_comps[:numw]
+            
+            # Solid: The rest (from numy to end)
+            # Note: If ncomp > numy, the remainder are solids/others
+            self.components['solid'] = all_comps[numy:]
+            
+            if ncomp != len(all_comps):
+                logger.warning(f"Component count mismatch: DIMENSIONS says {ncomp}, found {len(all_comps)}")
+
+        except Exception as e:
+            logger.warning(f"Failed to load ComponentTable: {e}")
+
+    def _load_units(self):
+        """Load /General/UnitsTable."""
+        if 'General/UnitsTable' not in self.handle:
+            return
+            
+        try:
+            ut = self.handle['General/UnitsTable'][()]
+            if ut.dtype.names:
+                # Robust column picking
+                idx_col = self._pick_dtype_field(ut.dtype.names, ["Index", "ID"])
+                out_col = self._pick_dtype_field(ut.dtype.names, ["Output Unit", "Unit"])
+                in_col = self._pick_dtype_field(ut.dtype.names, ["Internal Unit"])
+                dim_col = self._pick_dtype_field(ut.dtype.names, ["Dimensionality", "Dim"])
+                
+                # Fallback to column indices if names don't match
+                if not idx_col: idx_col = ut.dtype.names[0]
+                
+                # We need all columns
+                
+                for row in ut:
+                    try:
+                        uid = int(row[idx_col])
+                        ustr_out = self._decode_bytes(row[out_col]) if out_col else ""
+                        ustr_in = self._decode_bytes(row[in_col]) if in_col else ""
+                        dim_str = self._decode_bytes(row[dim_col]) if dim_col else ""
+                        
+                        self.units[uid] = {
+                            'index': uid,
+                            'output_unit': ustr_out,
+                            'internal_unit': ustr_in,
+                            'dimensionality': dim_str
+                        }
+                    except Exception as ex:
+                        logger.warning(f"Error parsing unit row: {ex}")
+                        
+        except Exception as e:
+            logger.warning(f"Failed to load UnitsTable: {e}")
+
+    def _load_name_records(self):
+        """Load /General/NameRecordTable."""
+        if 'General/NameRecordTable' not in self.handle:
+            return
+
+        try:
+            nt = self.handle['General/NameRecordTable'][()]
+            names = nt.dtype.names
+            if not names:
+                return
+
+            # Map columns with robust picking
+            col_key = self._pick_dtype_field(names, ["Keyword", "Key"])
+            col_name = self._pick_dtype_field(names, ["Name"]) # 'Long Name' usually separate
+            col_dim = self._pick_dtype_field(names, ["Dimensionality", "Units", "UnitKey"])
+            col_size = self._pick_dtype_field(names, ["Size", "SizeRef"])
+
+            if not col_key:
+                return
+
+            for row in nt:
+                key = self._decode_bytes(row[col_key])
+                name = self._decode_bytes(row[col_name]) if col_name else key
+                
+                # Parse Unit
+                unit_str = ""
+                if col_dim:
+                    dim_key = self._decode_bytes(row[col_dim])
+                    unit_str = self._parse_unit_key(dim_key)
+                
+                # Parse SizeRef
+                size_ref = ""
+                if col_size:
+                    size_ref = self._decode_bytes(row[col_size])
+                
+                self.name_records[key] = {
+                    'name': name,
+                    'unit': unit_str,
+                    'size_ref': size_ref
+                }
+        except Exception as e:
+            logger.warning(f"Failed to load NameRecordTable: {e}")
+
+    def _parse_unit_key(self, key: str) -> str:
+        """Parse '11|-13|' into 'm3/m3'."""
+        if not key: return ""
+        parts = key.strip('|').split('|')
+        nums, dens = [], []
+        for p in parts:
+            if not p: continue
+            try:
+                uid = int(p)
+                unit_obj = self.units.get(abs(uid))
+                
+                if isinstance(unit_obj, dict):
+                   u = unit_obj.get('internal_unit') or "?"
+                else:
+                   u = str(unit_obj) if unit_obj else "?"
+
+                if uid > 0: nums.append(u)
+                else: dens.append(u)
+            except Exception: pass
+            
+        n_str = "*".join(nums) if nums else "1"
+        d_str = "*".join(dens) if dens else ""
+        
+        if not dens: return n_str if nums else ""
+        return f"{n_str}/{d_str}"
+
+    def _load_time_index(self):
+        """Load /General/MasterTimeTable."""
+        if 'General/MasterTimeTable' not in self.handle:
+            return
+            
+        try:
+            mtt = self.handle['General/MasterTimeTable'][()]
+            if mtt.dtype.names:
+                # User requested direct column indexing to handle variable units (days, years, etc.)
+                # Col 0: Index
+                # Col 1: Time Offset
+                # Col 2: Date
+                
+                idx_col = mtt.dtype.names[0]
+                off_col = mtt.dtype.names[1] if len(mtt.dtype.names) > 1 else idx_col
+                date_col = mtt.dtype.names[2] if len(mtt.dtype.names) > 2 else None
+
+                # Ensure storage exists
+                if 'time_to_date' not in self.time_index:
+                    self.time_index['time_to_date'] = {}
+
+                for row in mtt:
+                    idx = int(row[idx_col])
+                    
+                    # Time Value
+                    time_val = self._parse_time_to_offset(row[off_col])
+                    if time_val is None:
+                        time_val = float(idx)
+                    self.time_index['time_to_offset'][idx] = time_val
+                    
+                    # Date Value
+                    if date_col:
+                        self.time_index['time_to_date'][idx] = self._decode_bytes(row[date_col])
+        except Exception as e:
+            logger.warning(f"Failed to load MasterTimeTable: {e}")
+
+    def _parse_time_to_offset(self, value: Any) -> Optional[float]:
+        """Parse 'Offset in days' which may be numeric or a string."""
+        if value is None:
+            return None
+        if isinstance(value, (float, int, np.floating, np.integer)):
+            return float(value)
+        value = self._decode_bytes(value)
+        try:
+            return float(value)
+        except Exception:
+            pass
+        for part in str(value).split():
+            try:
+                return float(part)
+            except Exception:
+                continue
+        return None
+
+    def _index_spatial_properties(self, list_props_ts: Optional[int] = 0):
+        """Index /SpatialProperties."""
+        if 'SpatialProperties' not in self.handle:
+            return
+            
+        sp = self.handle['SpatialProperties']
+        # Filter for numeric keys
+        steps = sorted([k for k in sp.keys() if k.isdigit()], key=lambda x: int(x))
+        self.spatial_props['timesteps'] = steps
+        
+        # Index properties for requested steps
+        for i, step_key in enumerate(steps):
+            step_idx = int(step_key)
+            self.time_index['spatial_time_indices'].append(step_idx)
+            
+            # If list_props_ts is set, only index first N steps
+            if list_props_ts is not None and i >= list_props_ts:
+                continue
+                
+            self.spatial_props['properties_by_ts'][step_idx] = self._list_step_properties(step_idx)
+
+    def _list_step_properties(self, step_idx: int) -> List[str]:
+        """List non-GRID dataset names under a SpatialProperties timestep."""
+        path = f"SpatialProperties/{step_idx:06d}"
+        if path not in self.handle:
+            return []
+        grp = self.handle[path]
+        return [k for k in grp.keys() if k != 'GRID' and isinstance(grp[k], h5py.Dataset)]
+
+    def _detect_grid_timesteps(self):
+        """Find which steps have GRID definition."""
+        if 'SpatialProperties' not in self.handle:
+            return
+            
+        for step_key in self.spatial_props['timesteps']:
+            if 'GRID' in self.handle[f"SpatialProperties/{step_key}"]:
+                self.spatial_props['grid_timesteps'].append(int(step_key))
+
+    def _load_timeseries_index(self):
+        """Index /TimeSeries entities without loading large data arrays."""
+        if 'TimeSeries' not in self.handle:
+            return
+
+        ts_root = self.handle['TimeSeries']
+        for entity_name in ts_root.keys():
+            entity = ts_root[entity_name]
+            if not isinstance(entity, h5py.Group):
+                continue
+
+            try:
+                origins = []
+                variables = []
+                timesteps = []
+                shape = (0, 0, 0)
+
+                if 'Origins' in entity:
+                    origins = [self._decode_bytes(v) for v in entity['Origins'][()]]
+                if 'Variables' in entity:
+                    variables = [self._decode_bytes(v) for v in entity['Variables'][()]]
+                if 'Timesteps' in entity:
+                    timesteps = [int(v) for v in entity['Timesteps'][()]]
+                if 'Data' in entity:
+                    shape = entity['Data'].shape
+
+                tables = {}
+                for key in entity.keys():
+                    if key.endswith('Table') and isinstance(entity[key], h5py.Dataset):
+                        tables[key] = self._decode_table(entity[key][()])
+
+                self.timeseries[entity_name.upper()] = {
+                    'name': entity_name,
+                    'origins': origins,
+                    'variables': variables,
+                    'timesteps': timesteps,
+                    'shape': shape,
+                    'tables': tables
+                }
+            except Exception as e:
+                logger.warning(f"Failed to index TimeSeries/{entity_name}: {e}")
+
+    def _decode_table(self, table: np.ndarray) -> List[Dict[str, Any]]:
+        """Decode a structured HDF5 table into plain Python dictionaries."""
+        if not getattr(table.dtype, 'names', None):
+            return []
+
+        rows = []
+        for row in table:
+            decoded = {}
+            for name in table.dtype.names:
+                value = row[name]
+                if isinstance(value, (bytes, np.bytes_)):
+                    decoded[name] = self._decode_bytes(value)
+                elif isinstance(value, np.generic):
+                    decoded[name] = value.item()
+                else:
+                    decoded[name] = value
+            rows.append(decoded)
+        return rows
+
+    def _load_wells(self):
+        """Load /TimeSeries/WELLS index for backward-compatible access."""
+        info = self.timeseries.get('WELLS')
+        if not info:
+            return
+
+        self.wells['names'] = list(info.get('origins', []))
+        self.wells['variables'] = list(info.get('variables', []))
+        self.wells['timesteps'] = list(info.get('timesteps', []))
+        self.wells['shape'] = info.get('shape', (0, 0, 0))
+
+    # --- Public Data Access ---
+
+    def get_grid_data(self, ts: int) -> Dict[str, Any]:
+        """
+        Fetch raw grid data for a timestep.
+        Returns a dictionary of numpy arrays and attributes.
+        Does NOT return h5py objects.
+        """
+        path = f"SpatialProperties/{ts:06d}/GRID"
+        if path not in self.handle:
+            return {}
+            
+        grid_grp = self.handle[path]
+        data = {}
+        
+        # Read Datasets
+        for k in grid_grp.keys():
+            obj = grid_grp[k]
+            if isinstance(obj, h5py.Dataset):
+                data[k] = obj[()]
+        
+        # Read Attributes
+        for k, v in grid_grp.attrs.items():
+            data[k] = v # Keep raw or decode? Usually raw numbers are fine.
+            
+        return data
+
+    def get_property_data(self, name: str, timestep: Union[int, float]) -> Optional[np.ndarray]:
+        """
+        Fetch raw 1D property array.
+        If timestep is float, finds nearest step.
+        """
+        # Resolve timestep
+        ts_idx = timestep
+        if isinstance(timestep, float):
+            # Find nearest
+            # Simple implementation: iterate time_to_offset
+            best_ts = -1
+            min_diff = float('inf')
+            for t_idx, t_val in self.time_index['time_to_offset'].items():
+                diff = abs(t_val - timestep)
+                if diff < min_diff:
+                    min_diff = diff
+                    best_ts = t_idx
+            if best_ts != -1:
+                ts_idx = best_ts
+            else:
+                ts_idx = int(timestep) # Fallback
+        
+        path = f"SpatialProperties/{int(ts_idx):06d}/{name}"
+        if path in self.handle:
+            return self.handle[path][()]
+        return None
+
+    def get_available_properties(self, ts: Optional[int] = None) -> List[str]:
+        """Get list of properties for a timestep."""
+        if not self.time_index['spatial_time_indices']:
+            return []
+            
+        target_ts = ts if ts is not None else self.time_index['spatial_time_indices'][0]
+        
+        # Check cache
+        if target_ts in self.spatial_props['properties_by_ts']:
+            return self.spatial_props['properties_by_ts'][target_ts]
+            
+        # Fetch on demand and cache
+        props = self._list_step_properties(target_ts)
+        self.spatial_props['properties_by_ts'][target_ts] = props
+        return props
+
+    def get_timeseries_entities(self) -> List[str]:
+        """Return available TimeSeries entity names, e.g. WELLS, LAYERS, GROUPS."""
+        return sorted(self.timeseries.keys())
+
+    def get_timeseries_info(self, entity: str = 'WELLS') -> Dict[str, Any]:
+        """Return indexed metadata for a TimeSeries entity."""
+        key = entity.upper()
+        if key not in self.timeseries:
+            return {
+                'name': entity,
+                'origins': [],
+                'variables': [],
+                'timesteps': [],
+                'shape': (0, 0, 0),
+                'tables': {}
+            }
+        return self.timeseries[key]
+
+    def get_timeseries_data(self,
+                            entity: str = 'WELLS',
+                            origins: Optional[List[str]] = None,
+                            variables: Optional[List[str]] = None,
+                            timesteps: Optional[List[int]] = None,
+                            drop_empty_origins: bool = True) -> Any:
+        """
+        Fetch TimeSeries data as a long-form DataFrame.
+
+        SR3 stores TimeSeries/Data as (time, variable, origin).
+        Columns:
+        Entity, Origin, Variable, TimeIndex, Time, Date, Value, Unit, OriginIndex, VariableIndex.
+        """
+        if not HAS_PANDAS:
+            raise ImportError("Pandas is required for get_timeseries_data")
+
+        key = entity.upper()
+        info = self.timeseries.get(key)
+        path = f"TimeSeries/{key}/Data"
+
+        if not info or path not in self.handle:
+            return pd.DataFrame()
+
+        all_origins = list(info.get('origins', []))
+        all_variables = list(info.get('variables', []))
+        all_timesteps = list(info.get('timesteps', []))
+        data = self.handle[path][()]
+
+        if data.ndim != 3:
+            raise ValueError(f"TimeSeries/{key}/Data must be 3D, got shape {data.shape}")
+
+        n_times, n_vars, n_origins = data.shape
+        if len(all_timesteps) != n_times:
+            logger.warning(f"TimeSeries/{key}: Timesteps length {len(all_timesteps)} does not match data axis {n_times}")
+            all_timesteps = all_timesteps[:n_times] or list(range(n_times))
+        if len(all_variables) != n_vars:
+            logger.warning(f"TimeSeries/{key}: Variables length {len(all_variables)} does not match data axis {n_vars}")
+            all_variables = all_variables[:n_vars]
+        if len(all_origins) != n_origins:
+            logger.warning(f"TimeSeries/{key}: Origins length {len(all_origins)} does not match data axis {n_origins}")
+            all_origins = all_origins[:n_origins]
+
+        origin_indices = self._resolve_name_indices(all_origins, origins, 'origin')
+        variable_indices = self._resolve_name_indices(all_variables, variables, 'variable')
+        timestep_indices = self._resolve_timestep_indices(all_timesteps, timesteps)
+
+        if drop_empty_origins:
+            origin_indices = [i for i in origin_indices if i < len(all_origins) and all_origins[i] != ""]
+
+        records = []
+        for t_pos in timestep_indices:
+            ts = int(all_timesteps[t_pos])
+            time_value = self.time_to_offset(ts)
+            date_value = self.time_index.get('time_to_date', {}).get(ts)
+
+            for origin_idx in origin_indices:
+                origin_name = all_origins[origin_idx]
+                for var_idx in variable_indices:
+                    var_name = all_variables[var_idx]
+                    records.append({
+                        'Entity': key,
+                        'Origin': origin_name,
+                        'Variable': var_name,
+                        'TimeIndex': ts,
+                        'Time': time_value,
+                        'Date': date_value,
+                        'Value': data[t_pos, var_idx, origin_idx],
+                        'Unit': self._get_timeseries_var_unit(var_name),
+                        'OriginIndex': origin_idx,
+                        'VariableIndex': var_idx,
+                    })
+
+        if not records:
+            return pd.DataFrame(columns=[
+                'Entity', 'Origin', 'Variable', 'TimeIndex', 'Time', 'Date',
+                'Value', 'Unit', 'OriginIndex', 'VariableIndex'
+            ])
+
+        return pd.DataFrame.from_records(records)
+
+    def _resolve_name_indices(self, names: List[str], selected: Optional[List[str]], label: str) -> List[int]:
+        """Resolve exact names to indices while preserving requested order."""
+        if selected is None:
+            return list(range(len(names)))
+
+        name_to_index = {name: i for i, name in enumerate(names)}
+        missing = [name for name in selected if name not in name_to_index]
+        if missing:
+            raise ValueError(f"Unknown TimeSeries {label}(s): {missing}")
+        return [name_to_index[name] for name in selected]
+
+    def _resolve_timestep_indices(self, timesteps: List[int], selected: Optional[List[int]]) -> List[int]:
+        """Resolve timestep values to positions in the TimeSeries time axis."""
+        if selected is None:
+            return list(range(len(timesteps)))
+
+        ts_to_index = {int(ts): i for i, ts in enumerate(timesteps)}
+        missing = [int(ts) for ts in selected if int(ts) not in ts_to_index]
+        if missing:
+            raise ValueError(f"Unknown TimeSeries timestep(s): {missing}")
+        return [ts_to_index[int(ts)] for ts in selected]
+
+    def get_well_data(self, 
+                      well_names: Optional[List[str]] = None, 
+                      variable_names: Optional[List[str]] = None, 
+                      timesteps: Optional[List[int]] = None) -> Any:
+        """
+        Fetch well data as a Pandas DataFrame.
+        """
+        df = self.get_timeseries_data(
+            entity='WELLS',
+            origins=well_names,
+            variables=variable_names,
+            timesteps=timesteps,
+        )
+        if df.empty:
+            return df
+
+        df = df.copy()
+        df['Well'] = df['Origin']
+        columns = [
+            'Date', 'Time', 'TimeIndex', 'Well', 'Variable', 'Value', 'Unit',
+            'OriginIndex', 'VariableIndex'
+        ]
+        return df[columns]
+
+    def _get_timeseries_var_unit(self, var_name: str) -> str:
+        """Resolve the unit for a TimeSeries/well variable from NameRecordTable."""
+        record = self.name_records.get(var_name)
+        return record['unit'] if record else ""
+
+    # --- Info Resolution ---
+
+    def get_property_info(self, name: str) -> Dict[str, str]:
+        """
+        Resolve display name and unit for a property.
+        e.g. 'SOLCONC3(1)' -> 'Solid Conc (CH4-HyD)'
+        """
+        # 1. Parse input
+        match = re.match(r"([A-Za-z0-9_]+)(?:\((\d+)\))?", name)
+        if not match:
+            return {'display_name': name, 'unit': '', 'original_key': name, 'component': ''}
+        
+        base_key = match.group(1)
+        idx_str = match.group(2)
+        idx = int(idx_str) if idx_str else None
+        
+        # 2. Find Record
+        record = self.name_records.get(base_key)
+        if not record:
+            record = self.name_records.get(base_key + "$C")
+            
+        if not record:
+            return {'display_name': name, 'unit': '', 'original_key': name, 'component': ''}
+            
+        template = record['name']
+        unit = record['unit']
+        size_ref = record['size_ref']
+        
+        # 3. Resolve Component
+        comp_name = ""
+        if idx is not None:
+            # Determine list based on size_ref
+            c_list = []
+            if size_ref == 'nsold':
+                c_list = self.components['solid']
+            elif size_ref == 'numy': # Fluid
+                c_list = self.components['fluid']
+            elif size_ref == 'numx': # Liquid
+                c_list = self.components['liquid']
+            elif size_ref == 'numw': # Aqueous
+                c_list = self.components['aqueous']
+            
+            # Map index (1-based) to list
+            if c_list and 1 <= idx <= len(c_list):
+                comp_name = c_list[idx-1]
+            else:
+                comp_name = str(idx)
+        
+        # 4. Format Display Name
+        if "$C" in template:
+            display_name = template.replace("$C", f"({comp_name})" if comp_name else "")
+        else:
+            display_name = f"{template} ({comp_name})" if comp_name else template
+            
+        return {
+            'display_name': display_name.strip(),
+            'unit': unit,
+            'original_key': name,
+            'component': comp_name
+        }
+
+    def get_grid_time_steps(self) -> List[int]:
+        return self.spatial_props['grid_timesteps']
+
+    def get_available_times(self) -> List[int]:
+        return self.time_index['spatial_time_indices']
+
+    def time_to_offset(self, ts: int) -> float:
+        return self.time_index['time_to_offset'].get(ts, float(ts))
+
+    def get_nearest_grid_ts(self, time_step: int) -> int:
+        """
+        Find the nearest grid timestep not exceeding the target.
+        Fallback: if none found, return the first grid timestep; if list is empty, return 0.
+        """
+        grid_steps = self.get_grid_time_steps()
+        if not grid_steps:
+            return 0
+        grid_steps_sorted = sorted(grid_steps)
+        pos = bisect.bisect_right(grid_steps_sorted, time_step)
+        if pos == 0:
+            return grid_steps_sorted[0]
+        return grid_steps_sorted[pos - 1]
+
+    def resolve_grid_ts(self, time_step: int) -> int:
+        """
+        Alias for get_nearest_grid_ts to keep call sites consistent.
+        """
+        return self.get_nearest_grid_ts(time_step)

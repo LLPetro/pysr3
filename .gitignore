@@ -1,0 +1,21 @@
+vtu_out/
+__pycache__/
+*.pyc
+site/
+
+# Packaging / build artifacts
+*.egg-info/
+build/
+dist/
+.eggs/
+
+# Scratch / caches
+.tmp/
+.pytest_cache/
+
+# Proprietary / third-party — NEVER publish (kept locally only)
+OfficialScripts/
+
+# Bundled simulation test data — excluded from the initial public push.
+# (Some .dat are CMG-template-derived; revisit licensing before adding back.)
+test/
