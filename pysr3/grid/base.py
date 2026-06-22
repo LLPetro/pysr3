@@ -62,10 +62,16 @@ class GridStrategy(ABC):
         time_step: int,
         grid_mode: str,
         include_inactive: bool,
+        keep_refined_parents: bool = True,
     ) -> pv.UnstructuredGrid:
         """Return an ``UnstructuredGrid`` with standard cell-data arrays.
 
         Implementations must stamp ``PropGlobalID`` and ``GlobalCellID`` so
         ``DataMapper`` can attach property values.
+
+        ``keep_refined_parents`` (default ``True``): when ``include_inactive`` is
+        ``False``, refined-parent cells (flagged ``IPSTAC=0`` solely because
+        their LGR children replace them) are still kept in the grid, so they
+        can serve as landing sites for bottom-up aggregation in ``DataMapper``.
         """
         raise NotImplementedError

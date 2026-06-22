@@ -15,6 +15,7 @@ from .geometry import (
     grid_mode_keep_mask,
     hexahedra_from_corners,
     infer_levels,
+    refined_parent_ids,
     segment_ijk,
 )
 
@@ -30,7 +31,8 @@ class CartesianGridStrategy(GridStrategy):
     facade's ``clean`` pass.
     """
 
-    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool):
+    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool,
+              keep_refined_parents: bool = True):
         try:
             igntnc = data["IGNTNC"]
             igntid = data["IGNTID"]
@@ -128,7 +130,15 @@ class CartesianGridStrategy(GridStrategy):
         # --- Filter ---
         keep_mask = np.ones(total_cells, dtype=bool)
         if not include_inactive:
-            keep_mask &= active_cell_mask(icstps, data)
+            active = active_cell_mask(icstps, data)
+            if keep_refined_parents:
+                # Refined parents are structurally inactive (children replace
+                # them), not physically inactive — re-include them so they can
+                # serve as landing sites for LGR aggregation.
+                rp = refined_parent_ids(icstpb, igntnc)
+                if rp.size:
+                    active[rp] = True
+            keep_mask &= active
         keep_mask &= grid_mode_keep_mask(grid_mode, level, icstpb, igntnc)
 
         indices = np.where(keep_mask)[0]

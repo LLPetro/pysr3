@@ -23,6 +23,7 @@ from .geometry import (
     compute_parent_ijk,
     grid_mode_keep_mask,
     infer_levels,
+    refined_parent_ids,
     segment_ijk,
 )
 
@@ -33,8 +34,11 @@ logger = logging.getLogger(__name__)
 class CornerPointGridStrategy(GridStrategy):
     """Build a corner-point grid from any supported SR3 encoding."""
 
-    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool):
-        nodes, blocks = self._resolve_nodes_blocks(data, time_step, grid_mode, include_inactive)
+    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool,
+              keep_refined_parents: bool = True):
+        nodes, blocks = self._resolve_nodes_blocks(
+            data, time_step, grid_mode, include_inactive, keep_refined_parents
+        )
         if nodes is None:  # Cartesian fallback already produced the grid
             return blocks
 
@@ -52,7 +56,12 @@ class CornerPointGridStrategy(GridStrategy):
 
         keep_mask = np.ones(total_cells, dtype=bool)
         if not include_inactive:
-            keep_mask &= active_cell_mask(icstps, data)
+            active = active_cell_mask(icstps, data)
+            if keep_refined_parents and icstpb is not None and igntnc is not None:
+                rp = refined_parent_ids(icstpb, igntnc)
+                if rp.size:
+                    active[rp] = True
+            keep_mask &= active
         if icstpb is not None and igntnc is not None:
             keep_mask &= grid_mode_keep_mask(grid_mode, level, icstpb, igntnc)
         elif grid_mode == "refined":
@@ -117,7 +126,8 @@ class CornerPointGridStrategy(GridStrategy):
     # ------------------------------------------------------------------ #
     # Geometry-encoding resolution
     # ------------------------------------------------------------------ #
-    def _resolve_nodes_blocks(self, data, time_step, grid_mode, include_inactive):
+    def _resolve_nodes_blocks(self, data, time_step, grid_mode, include_inactive,
+                               keep_refined_parents=True):
         """Return ``(nodes, blocks)``; or ``(None, grid)`` for the fallback."""
         if "NODES" in data and "BLOCKS" in data:
             return data["NODES"], data["BLOCKS"]
@@ -133,7 +143,9 @@ class CornerPointGridStrategy(GridStrategy):
                 "This can occur for CONVERT-TO-CORNER-POINT cases with DFN_REFINE."
             )
             cartesian = CartesianGridStrategy(self.indexer)
-            return None, cartesian.build(data, time_step, grid_mode, include_inactive)
+            return None, cartesian.build(
+                data, time_step, grid_mode, include_inactive, keep_refined_parents
+            )
         raise ValueError(
             "CornerPoint grid requires NODES/BLOCKS, compressed "
             "XCORNCRCN/YCORNCRCN/ZCORNCRCN, or COORD/ZCORN arrays"

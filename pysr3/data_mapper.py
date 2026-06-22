@@ -4,7 +4,7 @@ import pandas as pd
 from typing import Union, List, Dict, Optional
 import logging
 from .sr3_indexer import SR3Indexer
-from .grid.geometry import infer_levels
+from .grid.geometry import infer_levels, refined_parent_ids
 
 logger = logging.getLogger(__name__)
 
@@ -44,9 +44,12 @@ class DataMapper:
             aggregate: Whether to perform LGR aggregation. ``False`` (default)
                 maps directly and suits ``mixed`` grids; ``True`` rolls child
                 values up into parents and suits grids that contain parent cells
-                such as ``level0``.
-            agg_method: Aggregation method: ``'mean'``, ``'sum'``, ``'min'`` or
-                ``'max'``.
+                such as ``level0`` (build with
+                ``GridBuilder.build(..., keep_refined_parents=True)`` — the
+                default — so the parents are present).
+            agg_method: Aggregation method: ``'mean'``, ``'sum'``, ``'min'``,
+                ``'max'``, or ``'volume_mean'`` (bulk-volume-weighted mean using
+                the ``MODBVOL`` property).
 
         Returns:
             A DataFrame with one float column per ``(keyword, time)`` and one
@@ -161,10 +164,11 @@ class DataMapper:
                         agg_method: str) -> np.ndarray:
         """Aggregated mapping.
 
-        Builds a full array in ``GlobalCellID`` space, performs bottom-up LGR
-        aggregation, then maps onto the grid. Suited to grids that contain
-        parent cells (e.g. ``level0``), where parents need their children's
-        aggregated value.
+        Builds a full array in ``GlobalCellID`` space, NaN-initialises the
+        refined-parent slots (so their stale slot values don't survive),
+        performs bottom-up LGR aggregation, then maps onto the grid. Suited to
+        grids that contain refined-parent cells (e.g. ``level0`` built with
+        ``keep_refined_parents=True``, the default).
         """
         # 1. Fetch the raw property array
         prop_data = self.indexer.get_property_data(prop_name, time_step)
@@ -176,6 +180,7 @@ class DataMapper:
         geo_info = self._get_geometry_info(time_step)
         icstpb = geo_info['icstpb']
         icstps = geo_info['icstps']
+        igntnc = geo_info['igntnc']
         level = geo_info['level']
         max_level = geo_info['max_level']
         total_cells = len(icstpb)
@@ -196,24 +201,68 @@ class DataMapper:
         else:
             full_values[valid_mask] = prop_data[prop_indices]
 
-        # 4. Perform bottom-up LGR aggregation
-        if max_level > 0:
-            full_values = self._aggregate_values(full_values, icstpb, level, max_level, agg_method)
+        # 4. NaN-init refined-parent slots so their (possibly stale) own-slot
+        #    values don't survive aggregation
+        rp = refined_parent_ids(icstpb, igntnc)
+        if rp.size:
+            full_values[rp] = np.nan
 
-        # 5. Map onto the grid via GlobalCellID
+        # 5. Diagnose silent-no-op: file has refined parents but the grid
+        #    contains none of them -> aggregation can't land anywhere.
         if 'GlobalCellID' not in grid.cell_data:
             raise ValueError("Grid missing 'GlobalCellID' array. Cannot map aggregated data.")
-
         global_ids = grid.cell_data['GlobalCellID']
+        if rp.size > 0 and not np.isin(rp, global_ids).any():
+            logger.warning(
+                f"DataMapper.map_prop(aggregate=True): the grid contains 0 of "
+                f"{rp.size} LGR-refined parent cells; aggregation has no landing "
+                f"site and will be a no-op for this grid. Rebuild with "
+                f"GridBuilder.build(..., keep_refined_parents=True) (default) "
+                f"or include_inactive=True."
+            )
 
+        # 6. Resolve weights for volume_mean (one-shot, MODBVOL-based)
+        weights = None
+        if agg_method == 'volume_mean':
+            weights = self._volume_weights(icstps, time_step, total_cells)
+            if weights is None:
+                logger.warning("agg_method='volume_mean' requires MODBVOL; falling back to 'mean'.")
+                agg_method = 'mean'
+
+        # 7. Perform bottom-up LGR aggregation
+        if max_level > 0:
+            full_values = self._aggregate_values(full_values, icstpb, level, max_level,
+                                                 agg_method, weights=weights)
+
+        # 8. Map onto the grid via GlobalCellID
         if global_ids.max() >= len(full_values):
             logger.error(f"GlobalCellID {global_ids.max()} exceeds total cells {len(full_values)}")
             return np.full(grid.n_cells, np.nan)
 
         return full_values[global_ids]
 
+    def _volume_weights(self, icstps: np.ndarray, time_step: int,
+                        total_cells: int) -> Optional[np.ndarray]:
+        """Return per-cell bulk volume (length ``total_cells``) from ``MODBVOL``.
+
+        ``MODBVOL`` is a static property — written only at the grid time step —
+        so we fetch it once at the nearest grid step regardless of the caller's
+        time index, and propagate per cell via ``ICSTPS - 1``.
+        """
+        try:
+            grid_ts = self.indexer.get_nearest_grid_ts(time_step)
+        except (AttributeError, KeyError):
+            grid_ts = time_step
+        bv = self.indexer.get_property_data("MODBVOL", grid_ts)
+        if bv is None:
+            return None
+        weights = np.full(total_cells, np.nan, dtype=np.float64)
+        valid = (icstps > 0) & ((icstps - 1) < len(bv))
+        weights[valid] = bv[icstps[valid] - 1]
+        return weights
+
     def _get_geometry_info(self, time_step: int) -> Dict:
-        """Fetch and cache geometry info (ICSTPB, ICSTPS, inferred levels)."""
+        """Fetch and cache geometry info (ICSTPB, ICSTPS, IGNTNC, inferred levels)."""
         if time_step in self._geo_cache:
             return self._geo_cache[time_step]
 
@@ -242,6 +291,7 @@ class DataMapper:
         info = {
             'icstpb': icstpb,
             'icstps': icstps,
+            'igntnc': igntnc,
             'level': level,
             'max_level': max_level
         }
@@ -254,11 +304,13 @@ class DataMapper:
                           icstpb: np.ndarray,
                           levels: np.ndarray,
                           max_level: int,
-                          method: str = 'mean') -> np.ndarray:
+                          method: str = 'mean',
+                          weights: Optional[np.ndarray] = None) -> np.ndarray:
         """Perform bottom-up LGR aggregation.
 
         Working from the deepest level upward, aggregate child-cell values into
-        their parent cells using ``method``.
+        their parent cells using ``method``. For ``method='volume_mean'`` the
+        caller must supply ``weights`` as a per-cell array (e.g. ``MODBVOL``).
         """
         N = len(full_values)
 
@@ -302,6 +354,23 @@ class DataMapper:
                 aggs = np.full(N, -np.inf)
                 np.maximum.at(aggs, parents, valid_vals)
                 update_mask = (aggs != -np.inf)
+
+            elif method == 'volume_mean':
+                if weights is None:
+                    logger.warning("volume_mean requires weights; falling back to 'mean'.")
+                    return self._aggregate_values(full_values, icstpb, levels, max_level, 'mean')
+                w_child = weights[valid_children]
+                ok = np.isfinite(w_child) & (w_child > 0)
+                if not ok.any():
+                    continue
+                w_ok = w_child[ok]
+                p_ok = parents[ok]
+                v_ok = valid_vals[ok]
+                wsum = np.bincount(p_ok, weights=v_ok * w_ok, minlength=N)
+                wtot = np.bincount(p_ok, weights=w_ok, minlength=N)
+                with np.errstate(divide='ignore', invalid='ignore'):
+                    aggs = np.where(wtot > 0, wsum / wtot, np.nan)
+                update_mask = wtot > 0
 
             else:
                 logger.warning(f"Unknown aggregation method '{method}', defaulting to mean.")

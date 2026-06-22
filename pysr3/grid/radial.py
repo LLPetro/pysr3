@@ -16,6 +16,7 @@ from .geometry import (
     hexahedra_from_corners,
     infer_levels,
     parse_kdir,
+    refined_parent_ids,
     segment_ijk,
 )
 
@@ -30,7 +31,8 @@ MAX_ANGLE_DEG = 5.0
 class RadialGridStrategy(GridStrategy):
     """Build a radial grid, subdividing wide wedges for smooth visualization."""
 
-    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool):
+    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool,
+              keep_refined_parents: bool = True):
         try:
             igntnc = data["IGNTNC"]
             igntid = data["IGNTID"]
@@ -54,6 +56,17 @@ class RadialGridStrategy(GridStrategy):
 
         is_kdir_up = parse_kdir(data, default="DOWN") == "UP"
         mode_keep = grid_mode_keep_mask(grid_mode, level, icstpb, igntnc)
+
+        # Pre-compute the active-cell mask once, optionally re-including refined
+        # parents (structurally inactive but needed as aggregation landing sites).
+        if include_inactive:
+            active_full = None
+        else:
+            active_full = active_cell_mask(icstps, data)
+            if keep_refined_parents:
+                rp = refined_parent_ids(icstpb, igntnc)
+                if rp.size:
+                    active_full[rp] = True
 
         # Per-segment corner arrays and cell data, concatenated once at the end.
         corner_cols = [[] for _ in range(8)]
@@ -106,8 +119,8 @@ class RadialGridStrategy(GridStrategy):
 
             # Geometry validity: in the first ring (I=0) all J columns coincide.
             geo_mask = ~((i_flat == 0) & (j_flat > 0))
-            if not include_inactive:
-                geo_mask &= active_cell_mask(icstps, data)[start:end]
+            if active_full is not None:
+                geo_mask &= active_full[start:end]
             geo_mask &= mode_keep[seg_global_ids]
 
             keep = np.where(geo_mask)[0]

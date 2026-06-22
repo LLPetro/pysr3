@@ -42,6 +42,7 @@ class GridBuilder:
         time_step: int = 0,
         merge_points: bool = True,
         merge_tolerance: float = 1e-10,
+        keep_refined_parents: bool = True,
     ) -> pv.UnstructuredGrid:
         """Build a grid of the given ``grid_type``.
 
@@ -56,6 +57,12 @@ class GridBuilder:
             time_step: Time-step index whose GRID definition to use.
             merge_points: Merge coincident corners after building.
             merge_tolerance: Distance below which points are considered identical.
+            keep_refined_parents: When ``include_inactive=False`` (default),
+                still keep refined-parent cells in the grid (cells flagged
+                ``IPSTAC=0`` solely because LGR children replace them). These
+                cells are required as landing sites for
+                ``DataMapper.map_prop(aggregate=True)``. Set ``False`` to drop
+                them too (legacy behavior; can cause silent no-op aggregation).
 
         Returns:
             ``pv.UnstructuredGrid`` with ``PropGlobalID``, ``GlobalCellID``,
@@ -74,6 +81,7 @@ class GridBuilder:
             time_step=time_step,
             grid_mode=grid_mode,
             include_inactive=include_inactive,
+            keep_refined_parents=keep_refined_parents,
         )
 
         if merge_points and grid.n_points > 0:

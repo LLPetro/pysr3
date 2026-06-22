@@ -18,6 +18,7 @@ with SR3Indexer("test/lgr_nested/lgr_nested.sr3", list_props_ts=None) as sr3:
 | `grid_type` | — (required) | `"Cartesian"`, `"CornerPoint"`, or `"Radial"`. |
 | `grid_mode` | `"mixed"` | LGR display mode (see below). |
 | `include_inactive` | `False` | Keep cells with no property slot (`ICSTPS<=0`) or flagged inactive by `IPSTAC`. |
+| `keep_refined_parents` | `True` | Keep LGR refined parents in the grid even when `include_inactive=False`. They appear "inactive" only because their children replace them, and are needed as landing sites for `DataMapper.map_prop(aggregate=True)`. Set `False` for the legacy behavior (drops them; aggregation becomes a silent no-op on level-N grids). |
 | `time_step` | `0` | Which grid time step to read geometry from. |
 | `merge_points` | `True` | Merge coincident corners after building (smaller, faster meshes). |
 | `merge_tolerance` | `1e-10` | Distance below which two points are considered identical. |
