@@ -75,7 +75,7 @@ Z by cumulative Δz with `KDIR` deciding the direction. Wide wedges are
 vectorially with `np.repeat`. The first ring (I=0) collapses all J columns, so
 those duplicates are filtered out.
 
-## Corner-point
+## CornerPoint
 
 Detects the encoding and produces `(nodes, blocks)`:
 

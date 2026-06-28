@@ -50,7 +50,7 @@ A few relationships worth calling out:
 |---|---|---|
 | Cartesian / VARI grid | `GridBuilder.build("Cartesian")` | `BLOCKSIZE`, `BLOCKDEPTH`, `IGNT*`, `ICSTP*` |
 | Radial grid | `GridBuilder.build("Radial")` | `BLOCKSIZE`, `WELLRADIUS`, `IGNT*` |
-| Corner-point grid | `GridBuilder.build("CornerPoint")` | `NODES/BLOCKS` \| `*CORNCRCN` \| `COORD/ZCORN` |
+| CornerPoint grid | `GridBuilder.build("CornerPoint")` | `NODES/BLOCKS` \| `*CORNCRCN` \| `COORD/ZCORN` |
 | LGR levels & modes | `grid_mode=` | `IGNTNC`, `ICSTPB` |
 | DFU surfaces | `GridBuilder.build_dfn_units()` | `DFUCO*`, `DFUTNL`, `IUTDF` |
 | DFN segments | `GridBuilder.build_dfn_segments()` | `SGCOR*`, `ISGTPS`, `IPSTCS` |

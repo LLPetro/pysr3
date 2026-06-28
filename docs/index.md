@@ -87,7 +87,7 @@ Export VTU, overview/slice renders, vertical exaggeration.
 <div class="gallery-card" markdown>
 ![Convert to corner overview](assets/images/convert_to_corner_overview.png)
 <div markdown>
-### [Corner-point & DFN](user-guide/tutorials/corner-grid.md)
+### [CornerPoint & DFN](user-guide/tutorials/corner-grid.md)
 Handle `CornerPoint`, `CONVERT-TO-CORNER-POINT`, and DFN surfaces.
 </div>
 </div>

@@ -44,7 +44,7 @@ three different ways; pysr3 detects and handles all of them:
 grid = GridBuilder(sr3).build(grid_type="CornerPoint")
 ```
 
-### Convert-to-corner-point
+### Convert-to-CornerPoint
 
 `*CONVERT-TO-CORNER-POINT` converts a Cartesian-type grid to corner-point at
 run time — typically to handle non-matching corners in a `*VARI` grid. The

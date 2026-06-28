@@ -168,6 +168,7 @@ nav:
       - Component relationships: developer-guide/components.md
       - Grid strategy internals: developer-guide/grid-internals.md
       - Testing & validation: developer-guide/testing.md
+      - Naming & glossary: developer-guide/naming.md
       - Contributing: developer-guide/contributing.md
   - API Reference:
       - api/index.md

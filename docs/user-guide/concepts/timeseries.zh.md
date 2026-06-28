@@ -25,12 +25,12 @@ from pysr3 import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
     print(sr3.get_timeseries_entities())          # ['GROUPS', 'LAYERS', 'WELLS', ...]
-    info = sr3.get_timeseries_info("WELLS")        # origins, variables, timesteps, shape
+    info = sr3.get_timeseries_info("WELLS")        # origins, variables, time steps, shape
 
     df = sr3.get_well_data(
         wells=["STEAM INJT"],
         variables=["BHP"],
-        time_steps=info["timesteps"][:3],
+        time_steps=info["time steps"][:3],
     )
 ```
 

@@ -81,7 +81,7 @@ present depend on the grid type):
 | `ICSTGN` | per-cell grid number (1-based); NRT: "Complete storage to grid number" — equivalent to `1 + np.searchsorted(IGNTNC[1:], np.arange(n), side='right')` |
 | `IPSTAC` | active flag per property slot (a null-layer host can be inactive); NRT: "Packed storage to active status" |
 
-### Corner-point encodings
+### CornerPoint encodings
 
 | Arrays | Encoding |
 |---|---|

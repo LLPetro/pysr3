@@ -1,11 +1,11 @@
-# Corner-point grids
+# CornerPoint grids
 
 ## Goal
 
 Understand `CornerPoint` grids, Z-direction display, and the
 `*CONVERT-TO-CORNER-POINT` case that also contains a DFN.
 
-## Read a corner-point grid
+## Read a CornerPoint grid
 
 ```python
 from pysr3 import SR3Indexer, GridBuilder

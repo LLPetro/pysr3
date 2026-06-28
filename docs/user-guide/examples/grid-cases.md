@@ -49,7 +49,7 @@ with SR3Indexer("test/lgr_nested/lgr_nested.sr3", eager_list_steps=None) as sr3:
     level2 = builder.build("Cartesian", grid_mode="level2")
 ```
 
-## Corner-point
+## CornerPoint
 
 ```python
 with SR3Indexer("test/corner_coord/corner_coord.sr3") as sr3:

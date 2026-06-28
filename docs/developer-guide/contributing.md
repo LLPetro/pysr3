@@ -18,6 +18,9 @@ mkdocs serve                 # live preview at http://127.0.0.1:8000
 
 ## Conventions
 
+- **Naming:** before introducing a new identifier or parameter name, check
+  [Naming & glossary](naming.md) and prefer the canonical name there. New
+  concepts should extend that page rather than ship a one-off variant.
 - **Language:** code, comments, and docstrings are **English**. Docstrings use
   **Google style** (`Args:`, `Returns:`, `Raises:`) so mkdocstrings renders them
   cleanly into the [API reference](../api/index.md).

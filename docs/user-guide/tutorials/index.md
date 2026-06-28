@@ -25,7 +25,7 @@ Export VTU and renders, with vertical exaggeration.
 <div class="gallery-card" markdown>
 ![Convert to corner overview](../../assets/images/convert_to_corner_overview.png)
 <div markdown>
-### [Corner-point grids](corner-grid.md)
+### [CornerPoint grids](corner-grid.md)
 `CornerPoint`, Z direction, and convert-to-corner + DFN.
 </div>
 </div>
