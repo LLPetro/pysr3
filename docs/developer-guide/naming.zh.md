@@ -88,6 +88,8 @@ CMG 把 `/General/NameRecordTable` 的列称为 "keywords"。pysr3 区分两种�
 | DataFrame 列标签 | `Unit` |
 | `agg_method` 加权变体 | `'bulk_volume_mean'`（MODBVOL 加权）与 `'pore_volume_mean'`（BLOCKPVOL 加权） |
 
+单位计算本身位于 :mod:`pysr3.units`（`UnitConverter` 类加纯函数 `parse_unit_key`、`parse_dim_tokens`）。`SR3Indexer` 持有一个 `self._units` 实例并将 `get_unit`/`convert` 转发给它；该协作者可以使用合成字典独立测试，无需打开 SR3 文件（见 `test/test_unit_converter.py`）。
+
 ## 公共方法前缀约定
 
 `get_X` 是 `SR3Indexer` 上的主流模式。**所有返回值的访问器**都应采用该模式。仅保留**执行动作**的方法用动词前缀（build、convert、detect、register、close）。

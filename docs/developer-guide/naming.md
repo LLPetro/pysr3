@@ -103,6 +103,12 @@ identifier; "subgrid" is the safe pick.
 | DataFrame column label | `Unit` |
 | `agg_method` weighted variants | `'bulk_volume_mean'` (MODBVOL-weighted) and `'pore_volume_mean'` (BLOCKPVOL-weighted) |
 
+The unit math itself lives in :mod:`pysr3.units` (`UnitConverter` class plus
+the pure helpers `parse_unit_key` and `parse_dim_tokens`). `SR3Indexer` holds
+one as ``self._units`` and forwards `get_unit` / `convert` to it; the
+collaborator can be tested standalone against synthetic dicts without
+opening an SR3 file (see `test/test_unit_converter.py`).
+
 ## Public-method prefix convention
 
 `get_X` is the dominant pattern on `SR3Indexer`. Apply it to every
