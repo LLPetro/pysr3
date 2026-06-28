@@ -58,7 +58,7 @@ sequenceDiagram
 
 第三方调用方应仅依赖公共 API：
 
-- `SR3Indexer.get_grid_data`、`get_property_data`、`get_available_times`、
+- `SR3Indexer.get_grid_data`、`get_property_data`、`get_spatial_time_steps`、
   `get_available_properties`、`get_timeseries_entities`、`get_timeseries_info`、
   `get_timeseries_data`、`get_well_data`
 - `GridBuilder.build`、`build_dfn_units`、`build_dfn_segments`

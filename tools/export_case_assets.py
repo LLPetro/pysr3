@@ -104,7 +104,7 @@ def _case_dir(case: CaseSpec) -> Path:
 
 
 def _first_property_time(indexer: SR3Indexer, keyword: str) -> int | None:
-    for time_step in indexer.get_available_times():
+    for time_step in indexer.get_spatial_time_steps():
         if keyword in indexer.get_available_properties(time_step):
             return time_step
     return None
@@ -259,7 +259,7 @@ def export_case(
     artifact_dir = _case_dir(case) / "artifacts"
     artifact_dir.mkdir(parents=True, exist_ok=True)
 
-    with SR3Indexer(str(case.sr3_path), list_props_ts=None) as indexer:
+    with SR3Indexer(str(case.sr3_path), eager_list_steps=None) as indexer:
         builder = GridBuilder(indexer)
         grid = builder.build(
             grid_type=case.grid_type,
@@ -318,7 +318,7 @@ def export_case(
             "display_z_mode": z_mode,
             "display_scale": [float(x) for x in display_scale],
             "levels": sorted(int(x) for x in np.unique(grid.cell_data.get("Level", np.array([0])))),
-            "times": [int(x) for x in indexer.get_available_times()],
+            "times": [int(x) for x in indexer.get_spatial_time_steps()],
             "grid_steps": [int(x) for x in indexer.get_grid_time_steps()],
             "properties_t0": indexer.get_available_properties(0),
             "scalar": scalar,

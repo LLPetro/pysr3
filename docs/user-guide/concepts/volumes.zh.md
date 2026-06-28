@@ -18,7 +18,7 @@
 | `agg_method` | 权重来源 | 适用于…… |
 |---|---|---|
 | `'mean'` | （无） | 仅用于快速查看；假设子单元一致。LGR 或非均匀网格通常会产生误导。 |
-| `'volume_mean'` | `MODBVOL` | 几何/强度量（温度、深度加权标量）。块体积加权平均。 |
+| `'bulk_volume_mean'` | `MODBVOL` | 几何/强度量（温度、深度加权标量）。块体积加权平均。 |
 | `'pore_volume_mean'` | `BLOCKPVOL` | **流体属性** —— 单相压力、饱和度、摩尔分数、STOIIP 计算等。容纳流体的岩石体积是天然权重。 |
 
 ## 工作示例
@@ -32,7 +32,7 @@ with SR3Indexer("test/lgr_nested/lgr_nested.sr3") as sr3:
     mapper = DataMapper(sr3)
 
     p_pore = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="pore_volume_mean")
-    p_bulk = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="volume_mean")
+    p_bulk = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="bulk_volume_mean")
     p_arith = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="mean")
 ```
 

@@ -24,7 +24,7 @@ i.e. effective porosity. Same shape, related by porosity × NTG.
 | `agg_method` | Source | Right for… |
 |---|---|---|
 | `'mean'` | (none) | Quick look only; assumes uniform child cells. With LGR or graded grids this is usually misleading. |
-| `'volume_mean'` | `MODBVOL` | Geometric/intensive quantities (temperature, depth-weighted scalars). Bulk-volume average. |
+| `'bulk_volume_mean'` | `MODBVOL` | Geometric/intensive quantities (temperature, depth-weighted scalars). Bulk-volume average. |
 | `'pore_volume_mean'` | `BLOCKPVOL` | **Fluid properties** — pressure within a phase, saturations, mole fractions, STOIIP-style aggregation. The rock volume holding the fluid is the natural weight. |
 
 ## Worked example
@@ -38,7 +38,7 @@ with SR3Indexer("test/lgr_nested/lgr_nested.sr3") as sr3:
     mapper = DataMapper(sr3)
 
     p_pore = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="pore_volume_mean")
-    p_bulk = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="volume_mean")
+    p_bulk = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="bulk_volume_mean")
     p_arith = mapper.map_prop(grid, "PRES", 0, aggregate=True, agg_method="mean")
 ```
 

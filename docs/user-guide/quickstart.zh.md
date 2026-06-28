@@ -9,7 +9,7 @@ from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
 sr3_path = "test/cartesian/cartesian.sr3"
 
-with SR3Indexer(sr3_path, list_props_ts=None) as sr3:
+with SR3Indexer(sr3_path, eager_list_steps=None) as sr3:
     # 1. Build a PyVista grid from the first grid time step.
     grid = GridBuilder(sr3).build(
         grid_type="Cartesian",
@@ -21,7 +21,7 @@ with SR3Indexer(sr3_path, list_props_ts=None) as sr3:
     pres = DataMapper(sr3).map_prop(
         grid=grid,
         keywords="PRES",
-        times=sr3.get_available_times(),
+        time_steps=sr3.get_spatial_time_steps(),
     )
 
 print(grid.n_cells)   # number of cells in the mesh
@@ -35,8 +35,8 @@ print(pres.head())    # labelled DataFrame, one column per (property, time)
 2. **构建** 网格，使用 `GridBuilder` 并传入[网格类型](#choosing-a-grid-type)。
 3. **映射** SR3 空间属性到网格单元，使用 `DataMapper`。
 
-!!! info "`list_props_ts`"
-    `SR3Indexer(path, list_props_ts=None)` 为每个时间步索引属性列表。
+!!! info "`eager_list_steps`"
+    `SR3Indexer(path, eager_list_steps=None)` 为每个时间步索引属性列表。
     默认值（`0`）仅索引第一个时间步，对于大文件速度更快；其他时间步的属性随后按需获取。
 
 ## 选择网格类型 { #choosing-a-grid-type }

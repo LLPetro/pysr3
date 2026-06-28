@@ -79,7 +79,7 @@ class GridBuilder:
         """
         # Fetch the grid dict once and reuse it for both auto-detection and
         # strategy dispatch (single HDF5 read).
-        data = self.indexer.get_grid_data(self.indexer.get_nearest_grid_ts(time_step))
+        data = self.indexer.get_grid_data(self.indexer.get_nearest_grid_time_step(time_step))
         detected = detect_grid_type(data)
 
         if grid_type is None:

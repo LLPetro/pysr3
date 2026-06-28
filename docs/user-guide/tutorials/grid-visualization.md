@@ -42,7 +42,7 @@ To do the same thing programmatically with PyVista:
 ```python
 from pysr3 import SR3Indexer, GridBuilder
 
-with SR3Indexer("test/50the_datafile/tutorial_hm.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/50the_datafile/tutorial_hm.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint")
 
 grid.save("grid.vtu")

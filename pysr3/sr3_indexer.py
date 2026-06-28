@@ -6,12 +6,12 @@
 - Raw array access (``get_grid_data``, ``get_property_data``, ``get_grid_array``)
   with a transparent ``/SpatialProperties/<step>/GRID/`` fallback for static
   arrays such as ``BLOCKPVOL``/``BLOCKSIZE``/``ICSTPS``.
-- Time-step navigation (``get_grid_time_steps``, ``get_available_times``,
-  ``get_nearest_grid_ts``, ``time_to_offset``).
+- Time-step navigation (``get_grid_time_steps``, ``get_spatial_time_steps``,
+  ``get_nearest_grid_time_step``, ``get_time_offset``).
 - Property catalog (``get_available_properties``, ``get_property_info``) with
   STARS component-model resolution (e.g. ``SOLCONC3(1)`` → ``Solid Conc (CH4-HyD)``).
 - Unit subsystem driven by ``/General/UnitsTable`` + ``/General/UnitConversionTable``
-  (``unit_of``, ``convert``, plus ``to_unit=`` on every value-returning method).
+  (``get_unit``, ``convert``, plus ``to_unit=`` on every value-returning method).
 - IGNTGT-based grid-type detection (``detect_grid_type``) used by
   :class:`pysr3.GridBuilder` to auto-pick a strategy.
 - Pandas-shaped well/time-series data (``get_well_data``, ``get_timeseries_data``).
@@ -54,19 +54,18 @@ class SR3Indexer:
     4. Fetch and format Well data.
     """
     
-    def __init__(self, file_path: str, list_props_ts: Optional[int] = None):
-        """
-        Initialize the SR3 Indexer.
+    def __init__(self, file_path: str, eager_list_steps: Optional[int] = None):
+        """Initialize the SR3 Indexer.
 
         Args:
             file_path: Path to the .sr3 file.
-            list_props_ts: Eagerly index property keywords for the first N
-                timesteps; the rest are filled in lazily on demand. ``None``
+            eager_list_steps: Eagerly index property keywords for the first N
+                time-steps; the rest are filled in lazily on demand. ``None``
                 (default) eagerly indexes every step — appropriate for typical
                 SR3 files. Pass an integer (e.g. ``1``) for very large files
                 where listing every step's property catalog up-front is slow;
-                ``get_available_properties`` will still resolve missing steps
-                on demand.
+                :meth:`get_available_properties` will still resolve missing
+                steps on demand.
         """
         self.file_path = file_path
         self.handle: Optional[h5py.File] = None
@@ -113,7 +112,7 @@ class SR3Indexer:
             self._load_unit_conversions()
             self._load_name_records()
             self._load_time_index()
-            self._index_spatial_properties(list_props_ts=list_props_ts)
+            self._index_spatial_properties(eager_list_steps=eager_list_steps)
             self._detect_grid_time_steps()
             self._load_timeseries_index()
         except Exception as e:
@@ -429,7 +428,7 @@ class SR3Indexer:
 
     # --- Public unit helpers --------------------------------------------------
 
-    def unit_of(self, keyword: str, to_unit: str = "output") -> str:
+    def get_unit(self, keyword: str, to_unit: str = "output") -> str:
         """Return the unit string for ``keyword`` under the requested policy.
 
         Args:
@@ -610,7 +609,7 @@ class SR3Indexer:
                 continue
         return None
 
-    def _index_spatial_properties(self, list_props_ts: Optional[int] = 0):
+    def _index_spatial_properties(self, eager_list_steps: Optional[int] = 0):
         """Index /SpatialProperties."""
         if 'SpatialProperties' not in self.handle:
             return
@@ -625,8 +624,8 @@ class SR3Indexer:
             time_step = int(step_key)
             self.time_index['spatial_time_steps'].append(time_step)
 
-            # If list_props_ts is set, only index first N steps
-            if list_props_ts is not None and i >= list_props_ts:
+            # If eager_list_steps is set, only index first N steps
+            if eager_list_steps is not None and i >= eager_list_steps:
                 continue
 
             self.spatial_props['properties_by_step'][time_step] = self._list_step_properties(time_step)
@@ -686,68 +685,70 @@ class SR3Indexer:
 
     # --- Public Data Access ---
 
-    def get_grid_data(self, ts: int) -> Dict[str, Any]:
+    def get_grid_data(self, time_step: int) -> Dict[str, Any]:
+        """Fetch raw GRID arrays for one time-step as a plain dict.
+
+        Returns a dictionary keyed by dataset/attribute name (e.g. ``ICSTPS``,
+        ``ICSTPB``, ``IGNTGT``, ``BLOCKSIZE``, ``KDIR``); values are NumPy
+        arrays or scalars (never h5py objects, so the dict is safe to keep
+        after the file is closed).
         """
-        Fetch raw grid data for a timestep.
-        Returns a dictionary of numpy arrays and attributes.
-        Does NOT return h5py objects.
-        """
-        path = f"SpatialProperties/{ts:06d}/GRID"
+        path = f"SpatialProperties/{time_step:06d}/GRID"
         if path not in self.handle:
             return {}
-            
+
         grid_grp = self.handle[path]
         data = {}
-        
-        # Read Datasets
+
+        # Read datasets
         for k in grid_grp.keys():
             obj = grid_grp[k]
             if isinstance(obj, h5py.Dataset):
                 data[k] = obj[()]
-        
-        # Read Attributes
+
+        # Read attributes (typically small scalars like KDIR)
         for k, v in grid_grp.attrs.items():
-            data[k] = v # Keep raw or decode? Usually raw numbers are fine.
-            
+            data[k] = v
+
         return data
 
-    def get_property_data(self, name: str, timestep: Union[int, float]) -> Optional[np.ndarray]:
+    def get_property_data(self, keyword: str, time_step: Union[int, float]) -> Optional[np.ndarray]:
         """Fetch a raw 1-D property array by keyword.
 
         Lookup order:
 
-        1. ``/SpatialProperties/<step>/<name>`` — the usual location for
+        1. ``/SpatialProperties/<step>/<keyword>`` — the usual location for
            per-step properties (``PRES``, ``SO``, ``MODBVOL``, …).
-        2. ``/SpatialProperties/<grid_step>/GRID/<name>`` — static arrays
+        2. ``/SpatialProperties/<grid_step>/GRID/<keyword>`` — static arrays
            written only at grid time steps (``BLOCKPVOL``, ``BLOCKSIZE``,
            ``ICSTPS``, …). ``grid_step`` is resolved via
-           :meth:`get_nearest_grid_ts`, so the call works for any results step.
+           :meth:`get_nearest_grid_time_step`, so the call works for any
+           results step.
 
         Args:
-            name: Property keyword (case-sensitive, as stored in
+            keyword: Property keyword (case-sensitive, as stored in
                 ``/General/NameRecordTable``).
-            timestep: Integer step index, or a float in the same unit as
-                :meth:`time_to_offset` (auto-snaps to the nearest indexed step).
+            time_step: Integer step index, or a float in the same unit as
+                :meth:`get_time_offset` (auto-snaps to the nearest indexed step).
 
         Returns:
             The 1-D NumPy array, or ``None`` if no dataset for that keyword
             exists at the resolved step or in its GRID group.
         """
         # Resolve to an integer step (snap floats to the nearest indexed step).
-        time_step = timestep
-        if isinstance(timestep, float):
+        if isinstance(time_step, float):
             # step_to_time_offset is a small dict of {step: days}; a linear
             # scan beats building a sorted index for one-off lookups.
             best_step = -1
             min_diff = float('inf')
             for step, offset_days in self.time_index['step_to_time_offset'].items():
-                diff = abs(offset_days - timestep)
+                diff = abs(offset_days - time_step)
                 if diff < min_diff:
                     min_diff = diff
                     best_step = step
-            time_step = best_step if best_step != -1 else int(timestep)
+            time_step = best_step if best_step != -1 else int(time_step)
 
-        path = f"SpatialProperties/{int(time_step):06d}/{name}"
+        path = f"SpatialProperties/{int(time_step):06d}/{keyword}"
         if path in self.handle:
             return self.handle[path][()]
         # Fall back to /GRID/ — some static arrays (BLOCKPVOL, BLOCKSIZE, etc.)
@@ -755,26 +756,30 @@ class SR3Indexer:
         # via the same NameRecordTable.Dimensionality. Since /GRID/ is only
         # written at grid time steps, resolve to the nearest one before lookup
         # so the call works for any results time step.
-        grid_time_step = self.get_nearest_grid_ts(int(time_step))
-        grid_path = f"SpatialProperties/{int(grid_time_step):06d}/GRID/{name}"
+        grid_time_step = self.get_nearest_grid_time_step(int(time_step))
+        grid_path = f"SpatialProperties/{int(grid_time_step):06d}/GRID/{keyword}"
         if grid_path in self.handle:
             return self.handle[grid_path][()]
         return None
 
-    def get_available_properties(self, ts: Optional[int] = None) -> List[str]:
-        """Get list of properties for a time-step."""
+    def get_available_properties(self, time_step: Optional[int] = None) -> List[str]:
+        """List property keywords available at one time-step.
+
+        With ``time_step=None`` (default), returns the first step's catalog —
+        the most useful for a quick "what does this file contain?" lookup.
+        """
         if not self.time_index['spatial_time_steps']:
             return []
 
-        time_step = ts if ts is not None else self.time_index['spatial_time_steps'][0]
+        step = time_step if time_step is not None else self.time_index['spatial_time_steps'][0]
 
         # Check cache
-        if time_step in self.spatial_props['properties_by_step']:
-            return self.spatial_props['properties_by_step'][time_step]
+        if step in self.spatial_props['properties_by_step']:
+            return self.spatial_props['properties_by_step'][step]
 
         # Fetch on demand and cache
-        props = self._list_step_properties(time_step)
-        self.spatial_props['properties_by_step'][time_step] = props
+        props = self._list_step_properties(step)
+        self.spatial_props['properties_by_step'][step] = props
         return props
 
     def get_timeseries_entities(self) -> List[str]:
@@ -798,7 +803,7 @@ class SR3Indexer:
                             entity: str = 'WELLS',
                             origins: Optional[List[str]] = None,
                             variables: Optional[List[str]] = None,
-                            timesteps: Optional[List[int]] = None,
+                            time_steps: Optional[List[int]] = None,
                             drop_empty_origins: bool = True,
                             to_unit: str = 'output') -> Any:
         """
@@ -844,7 +849,7 @@ class SR3Indexer:
 
         origin_indices = self._resolve_name_indices(all_origins, origins, 'origin')
         variable_indices = self._resolve_name_indices(all_variables, variables, 'variable')
-        time_step_indices = self._resolve_time_step_indices(all_time_steps, timesteps)
+        time_step_indices = self._resolve_time_step_indices(all_time_steps, time_steps)
 
         if drop_empty_origins:
             origin_indices = [i for i in origin_indices if i < len(all_origins) and all_origins[i] != ""]
@@ -854,7 +859,7 @@ class SR3Indexer:
         var_units: Dict[int, str] = {}
         if to_unit == 'output':
             for v_idx in set(variable_indices):
-                var_units[v_idx] = self.unit_of(all_variables[v_idx], 'output')
+                var_units[v_idx] = self.get_unit(all_variables[v_idx], 'output')
             converted = data
         else:
             converted = data.astype(np.float64, copy=True)
@@ -862,16 +867,16 @@ class SR3Indexer:
                 var_name = all_variables[v_idx]
                 try:
                     converted[:, v_idx, :] = self.convert(var_name, data[:, v_idx, :], to_unit)
-                    var_units[v_idx] = self.unit_of(var_name, to_unit)
+                    var_units[v_idx] = self.get_unit(var_name, to_unit)
                 except ValueError as exc:
                     logger.warning(f"get_timeseries_data: {exc}; leaving {var_name!r} in output units")
                     converted[:, v_idx, :] = data[:, v_idx, :]
-                    var_units[v_idx] = self.unit_of(var_name, 'output')
+                    var_units[v_idx] = self.get_unit(var_name, 'output')
 
         records = []
         for t_pos in time_step_indices:
             ts = int(all_time_steps[t_pos])
-            time_value = self.time_to_offset(ts)
+            time_value = self.get_time_offset(ts)
             date_value = self.time_index.get('time_to_date', {}).get(ts)
 
             for origin_idx in origin_indices:
@@ -922,21 +927,22 @@ class SR3Indexer:
         return [step_to_index[int(s)] for s in selected]
 
     def get_well_data(self,
-                      well_names: Optional[List[str]] = None,
-                      variable_names: Optional[List[str]] = None,
-                      timesteps: Optional[List[int]] = None,
+                      wells: Optional[List[str]] = None,
+                      variables: Optional[List[str]] = None,
+                      time_steps: Optional[List[int]] = None,
                       to_unit: str = 'output') -> Any:
-        """
-        Fetch well data as a Pandas DataFrame.
+        """Fetch well data as a Pandas DataFrame.
 
-        ``to_unit`` is forwarded to :meth:`get_timeseries_data` — see its
-        docstring for the accepted values.
+        Convenience wrapper for ``get_timeseries_data(entity='WELLS', ...)``
+        that exposes ``wells=`` (well names) instead of the generic ``origins=``
+        and renames the ``Origin`` column to ``Well``. ``to_unit`` is forwarded
+        — see :meth:`get_timeseries_data` for the accepted values.
         """
         df = self.get_timeseries_data(
             entity='WELLS',
-            origins=well_names,
-            variables=variable_names,
-            timesteps=timesteps,
+            origins=wells,
+            variables=variables,
+            time_steps=time_steps,
             to_unit=to_unit,
         )
         if df.empty:
@@ -958,7 +964,7 @@ class SR3Indexer:
         e.g. 'SOLCONC3(1)' -> 'Solid Conc (CH4-HyD)'
 
         ``to_unit`` controls which unit string is returned (default ``'output'``
-        — the unit the stored bytes are in). See :meth:`unit_of` for details.
+        — the unit the stored bytes are in). See :meth:`get_unit` for details.
         """
         # 1. Parse input
         match = re.match(r"([A-Za-z0-9_]+)(?:\((\d+)\))?", name)
@@ -983,7 +989,7 @@ class SR3Indexer:
         # Resolve unit under the requested policy (handles 'output' / 'internal' /
         # any specific unit name); falls back to the stored Output Unit label.
         try:
-            unit = self.unit_of(record_key, to_unit=to_unit)
+            unit = self.get_unit(record_key, to_unit=to_unit)
         except ValueError:
             unit = record.get('output_unit', '')
         size_ref = record['size_ref']
@@ -1022,18 +1028,26 @@ class SR3Indexer:
         }
 
     def get_grid_time_steps(self) -> List[int]:
+        """Return the time-step indices at which ``/GRID`` is written."""
         return self.spatial_props['grid_time_steps']
 
-    def get_available_times(self) -> List[int]:
+    def get_spatial_time_steps(self) -> List[int]:
+        """Return every time-step index present in ``/SpatialProperties``."""
         return self.time_index['spatial_time_steps']
 
-    def time_to_offset(self, ts: int) -> float:
-        return self.time_index['step_to_time_offset'].get(ts, float(ts))
+    def get_time_offset(self, time_step: int) -> float:
+        """Days since the simulation start at ``time_step``; ``float(time_step)`` if unknown."""
+        return self.time_index['step_to_time_offset'].get(time_step, float(time_step))
 
-    def get_nearest_grid_ts(self, time_step: int) -> int:
-        """
-        Find the nearest grid timestep not exceeding the target.
-        Fallback: if none found, return the first grid timestep; if list is empty, return 0.
+    def get_step_date(self, time_step: int) -> Optional[str]:
+        """Return the date string for ``time_step``, or ``None`` if unknown."""
+        return self.time_index['step_to_date'].get(time_step)
+
+    def get_nearest_grid_time_step(self, time_step: int) -> int:
+        """Return the nearest grid time-step not exceeding ``time_step``.
+
+        Fallback: if none qualifies, return the first grid time-step; if the
+        list is empty, return ``0``.
         """
         grid_steps = self.get_grid_time_steps()
         if not grid_steps:
@@ -1052,7 +1066,7 @@ class SR3Indexer:
         ``IGNTGT`` is missing/empty or the code is unknown — letting the caller
         decide whether to raise or fall back.
         """
-        data = self.get_grid_data(self.get_nearest_grid_ts(time_step))
+        data = self.get_grid_data(self.get_nearest_grid_time_step(time_step))
         return _detect_grid_type(data)
 
     def get_grid_array(self, name: str, time_step: int) -> Optional[np.ndarray]:
@@ -1063,7 +1077,7 @@ class SR3Indexer:
         ``/GRID/`` (e.g. ``BLOCKPVOL``, ``BLOCKSIZE``, ``ICSTPS``) versus at the
         step root (e.g. ``MODBVOL``, ``PRES``).
         """
-        ts = self.get_nearest_grid_ts(time_step)
+        ts = self.get_nearest_grid_time_step(time_step)
         path = f"SpatialProperties/{int(ts):06d}/GRID/{name}"
         if path in self.handle:
             return self.handle[path][()]

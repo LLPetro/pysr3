@@ -28,9 +28,9 @@ with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
     info = sr3.get_timeseries_info("WELLS")        # origins, variables, timesteps, shape
 
     df = sr3.get_well_data(
-        well_names=["STEAM INJT"],
-        variable_names=["BHP"],
-        timesteps=info["timesteps"][:3],
+        wells=["STEAM INJT"],
+        variables=["BHP"],
+        time_steps=info["timesteps"][:3],
     )
 ```
 

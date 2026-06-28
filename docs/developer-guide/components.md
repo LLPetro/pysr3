@@ -63,7 +63,7 @@ A few relationships worth calling out:
 ```python
 from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
-with SR3Indexer(path, list_props_ts=None) as sr3:   # access
+with SR3Indexer(path, eager_list_steps=None) as sr3:   # access
     builder = GridBuilder(sr3)                       # geometry facade
     grid = builder.build(grid_type="CornerPoint")    # -> strategy -> geometry helpers
     seg  = builder.build_dfn_segments()              # -> grid.dfn

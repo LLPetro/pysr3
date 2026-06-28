@@ -42,7 +42,7 @@ with SR3Indexer("test/lgr/lgr.sr3") as sr3:
 嵌套（多层）LGR：
 
 ```python
-with SR3Indexer("test/lgr_nested/lgr_nested.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/lgr_nested/lgr_nested.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
     mixed  = builder.build("Cartesian", grid_mode="mixed")
     level2 = builder.build("Cartesian", grid_mode="level2")
@@ -65,7 +65,7 @@ with SR3Indexer("test/50the_datafile/tutorial_hm.sr3") as sr3:
 ## 转换为角点 + DFN
 
 ```python
-with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
     matrix       = builder.build("CornerPoint")
     dfn_segments = builder.build_dfn_segments()
@@ -75,12 +75,12 @@ with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", list_props_ts=No
 多个 DFU 与 `DFN_REFINE`：
 
 ```python
-with SR3Indexer("test/dfn_multi/dfn_multi.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/dfn_multi/dfn_multi.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
     dfn_segments = builder.build_dfn_segments()
     dfn_units    = builder.build_dfn_units()
 
-with SR3Indexer("test/dfn_refine/dfn_refine.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/dfn_refine/dfn_refine.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
     matrix         = builder.build("CornerPoint")           # falls back to Cartesian arrays
     active_segs    = builder.build_dfn_segments()
@@ -92,7 +92,7 @@ with SR3Indexer("test/dfn_refine/dfn_refine.sr3", list_props_ts=None) as sr3:
 ```python
 from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
-with SR3Indexer("test/cartesian/cartesian.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/cartesian/cartesian.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build("Cartesian")
     df = DataMapper(sr3).map_prop(grid, ["PRES", "SO"], [0])
 

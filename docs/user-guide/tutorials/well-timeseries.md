@@ -10,7 +10,7 @@ Read well time-series results, export them to CSV, and plot a BHP curve.
 from pysr3 import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
-    df = sr3.get_well_data(well_names=["STEAM INJT"], variable_names=["BHP"])
+    df = sr3.get_well_data(wells=["STEAM INJT"], variables=["BHP"])
 
 print(df.head())
 ```
@@ -34,7 +34,7 @@ import matplotlib.pyplot as plt
 from pysr3 import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
-    df = sr3.get_well_data(well_names=["STEAM INJT"], variable_names=["BHP"])
+    df = sr3.get_well_data(wells=["STEAM INJT"], variables=["BHP"])
 
 plt.plot(df["Time"], df["Value"])
 plt.xlabel("Time")

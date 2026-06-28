@@ -39,7 +39,7 @@ def export_case_timeseries(case: CaseSpec, entities: list[str] | None = None) ->
     out_dir = case.sr3_path.parent / "timeseries"
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    with SR3Indexer(str(case.sr3_path), list_props_ts=None) as indexer:
+    with SR3Indexer(str(case.sr3_path), eager_list_steps=None) as indexer:
         available = indexer.get_timeseries_entities()
         selected = [e.upper() for e in entities] if entities else available
         missing = sorted(set(selected) - set(available))

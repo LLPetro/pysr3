@@ -15,9 +15,9 @@ from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
 SR3 = "test/50the_datafile/tutorial_hm.sr3"
 
-with SR3Indexer(SR3, list_props_ts=None) as sr3:
-    times = sr3.get_available_times()                 # [0, 9, 26, 30, 34, 37, 40, 43]
-    print("times (days):", [round(sr3.time_to_offset(t), 1) for t in times])
+with SR3Indexer(SR3, eager_list_steps=None) as sr3:
+    times = sr3.get_spatial_time_steps()                 # [0, 9, 26, 30, 34, 37, 40, 43]
+    print("times (days):", [round(sr3.get_time_offset(t), 1) for t in times])
     print("grid steps:", sr3.get_grid_time_steps())   # [0]
     print("properties @ t0:", sr3.get_available_properties(0))
     print("time-series entities:", sr3.get_timeseries_entities())
@@ -34,7 +34,7 @@ time-series entities: ['GROUPS', 'LAYERS', 'SECTORS', 'WELLS']
 wells: ['Well 1', 'Well 10', 'Well 2', 'Well 3', 'Well 4', 'Well 6', 'Well 7', 'Well 8', 'Well 9']
 ```
 
-`get_available_times()` 返回 SR3 步骤索引；`time_to_offset()` 将步骤转换为经过的天数。网格几何仅在步骤 0 写入——这是正常现象，后续任意时间步的属性映射会自动复用该几何。
+`get_spatial_time_steps()` 返回 SR3 步骤索引；`get_time_offset()` 将步骤转换为经过的天数。网格几何仅在步骤 0 写入——这是正常现象，后续任意时间步的属性映射会自动复用该几何。
 
 ## 2. 构建网格并附加属性
 
@@ -43,11 +43,11 @@ wells: ['Well 1', 'Well 10', 'Well 2', 'Well 3', 'Well 4', 'Well 6', 'Well 7', '
 ```python
 import numpy as np
 
-with SR3Indexer(SR3, list_props_ts=None) as sr3:
+with SR3Indexer(SR3, eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint")
     mapper = DataMapper(sr3)
 
-    last = sr3.get_available_times()[-1]
+    last = sr3.get_spatial_time_steps()[-1]
     grid.cell_data["PRES"] = mapper.map_prop(grid, "PRES", last).iloc[:, 0].to_numpy()
 
     print(grid.n_cells, "cells")
@@ -122,17 +122,17 @@ plotter.show()                     # or: plotter.screenshot("pres_3d.png")
 选择*哪个*属性以及*哪个*时间步。使用数据发现接口来驱动选择：
 
 ```python
-with SR3Indexer(SR3, list_props_ts=None) as sr3:
+with SR3Indexer(SR3, eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint")
     mapper = DataMapper(sr3)
 
     # one property at several times -> a multi-column DataFrame
-    df = mapper.map_prop(grid, "SO", sr3.get_available_times())
+    df = mapper.map_prop(grid, "SO", sr3.get_spatial_time_steps())
     print(df.columns.names)        # ['Keyword','LongName','Unit','Time','TimeIndex','TimeUnit']
     print(df.columns.get_level_values("Time"))   # elapsed days per column
 
     # several properties at one time
-    df2 = mapper.map_prop(grid, ["PRES", "TEMP", "SW"], sr3.get_available_times()[-1])
+    df2 = mapper.map_prop(grid, ["PRES", "TEMP", "SW"], sr3.get_spatial_time_steps()[-1])
 ```
 
 ```text
@@ -144,8 +144,8 @@ with SR3Indexer(SR3, list_props_ts=None) as sr3:
 
 ```python
 def step_nearest_days(sr3, target_days):
-    steps = sr3.get_available_times()
-    return min(steps, key=lambda s: abs(sr3.time_to_offset(s) - target_days))
+    steps = sr3.get_spatial_time_steps()
+    return min(steps, key=lambda s: abs(sr3.get_time_offset(s) - target_days))
 
 step = step_nearest_days(sr3, 150)     # closest step to day 150
 ```
@@ -335,7 +335,7 @@ plotter.show()
 ```python
 import matplotlib.pyplot as plt
 
-with SR3Indexer(SR3, list_props_ts=None) as sr3:
+with SR3Indexer(SR3, eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint")
     mapper = DataMapper(sr3)
 
@@ -344,7 +344,7 @@ with SR3Indexer(SR3, list_props_ts=None) as sr3:
     cell = int(np.argmin(np.linalg.norm(centers - target, axis=1)))
     ijk = (grid.cell_data["I"][cell], grid.cell_data["J"][cell], grid.cell_data["K"][cell])
 
-    df = mapper.map_prop(grid, "PRES", sr3.get_available_times())
+    df = mapper.map_prop(grid, "PRES", sr3.get_spatial_time_steps())
     series = df.iloc[cell]
     days = df.columns.get_level_values("Time").astype(float).to_numpy()
     order = np.argsort(days)
@@ -360,7 +360,7 @@ with SR3Indexer(SR3, list_props_ts=None) as sr3:
 **垂向剖面**（固定 I、J，沿列深度方向的属性分布）思路相同，只是沿单元轴而非时间轴进行：
 
 ```python
-last = sr3.get_available_times()[-1]
+last = sr3.get_spatial_time_steps()[-1]
 col = mapper.map_prop(grid, "PRES", last)        # one time
 ij = (grid.cell_data["I"] == 13) & (grid.cell_data["J"] == 16)
 order = np.argsort(grid.cell_data["K"][ij])
@@ -379,7 +379,7 @@ import matplotlib.pyplot as plt
 
 with SR3Indexer(SR3) as sr3:
     for well in ["Well 1", "Well 2", "Well 3"]:
-        d = sr3.get_well_data(well_names=[well], variable_names=["OILRATSC"])
+        d = sr3.get_well_data(wells=[well], variables=["OILRATSC"])
         plt.plot(d["Time"], d["Value"], marker="o", label=well)
     plt.xlabel("Time (days)"); plt.ylabel("Oil rate (OILRATSC)")
     plt.legend(); plt.show()
@@ -392,7 +392,7 @@ with SR3Indexer(SR3) as sr3:
 ```python
 with SR3Indexer(SR3) as sr3:
     for well in ["Well 1", "Well 2", "Well 3"]:
-        d = sr3.get_well_data(well_names=[well], variable_names=["BHP"])
+        d = sr3.get_well_data(wells=[well], variables=["BHP"])
         plt.plot(d["Time"], d["Value"], marker="o", label=well)
     plt.xlabel("Time (days)"); plt.ylabel("BHP"); plt.legend(); plt.show()
 ```
@@ -403,12 +403,12 @@ with SR3Indexer(SR3) as sr3:
 
 ```python
 with SR3Indexer(SR3) as sr3:
-    bhp   = sr3.get_well_data(variable_names=["BHP"])                 # all wells, BHP
+    bhp   = sr3.get_well_data(variables=["BHP"])                 # all wells, BHP
     layer = sr3.get_timeseries_data(entity="LAYERS", variables=["OILVOLSC"])
     field = sr3.get_timeseries_data(entity="GROUPS")                 # field/group totals
 
 # cumulative oil for one well
-w1 = sr3.get_well_data(well_names=["Well 1"], variable_names=["OILVOLSC"])
+w1 = sr3.get_well_data(wells=["Well 1"], variables=["OILVOLSC"])
 ```
 
 参见[井与时序数据](../concepts/timeseries.md)，了解实体模型和输出列说明。
@@ -472,7 +472,7 @@ plotter.camera_position = "iso"
 plotter.open_gif("pres_over_time.gif", fps=2)
 for t in times:
     pres[:] = mapper.map_prop(grid, "PRES", t).iloc[:, 0].to_numpy()
-    plotter.add_text(f"day {sr3.time_to_offset(t):.0f}", name="day")
+    plotter.add_text(f"day {sr3.get_time_offset(t):.0f}", name="day")
     plotter.write_frame()
 plotter.close()
 ```
@@ -502,7 +502,7 @@ days, avg = [], []
 for t in times:
     p = mapper.map_prop(grid, "PRES", t).iloc[:, 0].to_numpy()
     ok = np.isfinite(p) & np.isfinite(bv)
-    days.append(sr3.time_to_offset(t))
+    days.append(sr3.get_time_offset(t))
     avg.append(np.sum(p[ok] * bv[ok]) / np.sum(bv[ok]))
 
 plt.plot(days, avg, marker="o")
@@ -515,7 +515,7 @@ plt.xlabel("Time (days)"); plt.ylabel("Volume-weighted mean PRES (kPa)"); plt.sh
 
 | 任务 | 关键调用 |
 |---|---|
-| 读取与发现 | `SR3Indexer`、`get_available_times/properties`、`get_timeseries_*` |
+| 读取与发现 | `SR3Indexer`、`get_spatial_time_steps/properties`、`get_timeseries_*` |
 | 构建与映射 | `GridBuilder.build`、`DataMapper.map_prop` |
 | 三维场景 | `pv.Plotter().add_mesh(scalars=..., cmap=...)` |
 | 等值面 | `cell_data_to_point_data().contour(isosurfaces=...)` |

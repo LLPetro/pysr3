@@ -15,14 +15,14 @@ test/cartesian/cartesian.sr3
 ```python
 from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
-with SR3Indexer("test/cartesian/cartesian.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/cartesian/cartesian.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(
         grid_type="Cartesian",
         grid_mode="mixed",
         time_step=0,
     )
 
-    df = DataMapper(sr3).map_prop(grid=grid, keywords="PRES", times=[0])
+    df = DataMapper(sr3).map_prop(grid=grid, keywords="PRES", time_steps=[0])
 
 print(grid.n_cells)
 print(df.head())

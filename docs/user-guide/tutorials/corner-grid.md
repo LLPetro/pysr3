@@ -43,7 +43,7 @@ layer but is **not** a volumetric filling of that layer.
 ```python
 from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
-with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
     matrix       = builder.build("CornerPoint")
     dfn_segments = builder.build_dfn_segments()

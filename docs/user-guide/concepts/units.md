@@ -54,8 +54,8 @@ with SR3Indexer("model.sr3") as sr3:
     df_int = DataMapper(sr3).map_prop(grid, "TEMP", 0, to_unit="internal")
 
     # Inspect what's available
-    print(sr3.unit_of("OILRATSC"))               # 'cm3/min'   (Output)
-    print(sr3.unit_of("OILRATSC", "internal"))   # 'm3/day'    (Internal)
+    print(sr3.get_unit("OILRATSC"))               # 'cm3/min'   (Output)
+    print(sr3.get_unit("OILRATSC", "internal"))   # 'm3/day'    (Internal)
 ```
 
 ## Looking under the hood
@@ -63,7 +63,7 @@ with SR3Indexer("model.sr3") as sr3:
 ```python
 sr3.units                     # {dim_idx: {output_unit, internal_unit, dimensionality}}
 sr3.unit_conversions          # {dim_idx: {unit_name: (gain, offset)}}
-sr3.unit_of(keyword)          # the unit string for any policy
+sr3.get_unit(keyword)          # the unit string for any policy
 sr3.convert(keyword, values, to_unit)  # the conversion math, vectorized over arrays
 ```
 
@@ -74,7 +74,7 @@ no external `pint`-style library is needed.
 
 1. **`MasterTimeTable` time offsets** are stored in **days** regardless of the
    file's Output Time unit (the column header literally says `"Offset in days"`).
-   `pysr3.time_to_offset()` returns those values as-is. Rate denominators
+   `pysr3.get_time_offset()` returns those values as-is. Rate denominators
    (`OILRATSC = Volume / WellRateTime`) follow the Output Unit choice.
 
 2. **Temperature canonical = `C`** in `UnitConversionTable`, while

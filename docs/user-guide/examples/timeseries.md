@@ -6,7 +6,7 @@
 from pysr3 import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
-    df = sr3.get_well_data(well_names=["STEAM INJT"], variable_names=["BHP"])
+    df = sr3.get_well_data(wells=["STEAM INJT"], variables=["BHP"])
 
 print(df.head())
 ```
@@ -15,7 +15,7 @@ print(df.head())
 
 ```python
 with SR3Indexer("test/50the_datafile/tutorial_hm.sr3") as sr3:
-    df = sr3.get_well_data(variable_names=["OILRATSC"])
+    df = sr3.get_well_data(variables=["OILRATSC"])
 ```
 
 ## Layer time series

@@ -36,7 +36,7 @@ class DataMapper:
     def map_prop(self,
                  grid: pv.UnstructuredGrid,
                  keywords: Union[str, List[str]],
-                 times: Union[int, List[int]],
+                 time_steps: Union[int, List[int]],
                  aggregate: bool = False,
                  agg_method: str = 'mean',
                  to_unit: str = 'output') -> pd.DataFrame:
@@ -45,7 +45,7 @@ class DataMapper:
         Args:
             grid: Target PyVista grid (must carry the ``PropGlobalID`` array).
             keywords: Property keyword(s), e.g. ``'PRES'`` or ``['PRES', 'SO']``.
-            times: Time-step index or indices, e.g. ``0`` or ``[0, 1]``.
+            time_steps: Time-step index or indices, e.g. ``0`` or ``[0, 1]``.
             aggregate: Whether to perform LGR aggregation. ``False`` (default)
                 maps directly and suits ``mixed`` grids; ``True`` rolls child
                 values up into parents and suits grids that contain parent cells
@@ -53,11 +53,13 @@ class DataMapper:
                 ``GridBuilder.build(..., keep_refined_parents=True)`` — the
                 default — so the parents are present).
             agg_method: Aggregation method: ``'mean'``, ``'sum'``, ``'min'``,
-                ``'max'``, ``'volume_mean'`` (bulk-volume-weighted mean using
-                ``MODBVOL``), or ``'pore_volume_mean'`` (pore-volume-weighted
-                mean using ``BLOCKPVOL`` — the right choice for fluid-property
-                aggregation such as STOIIP, saturations and pressure averages).
-            to_unit: Unit policy applied to every ``(keyword, time)`` column.
+                ``'max'``, ``'bulk_volume_mean'`` (bulk-volume-weighted mean
+                using ``MODBVOL``), or ``'pore_volume_mean'`` (pore-volume-
+                weighted mean using ``BLOCKPVOL`` — the right choice for
+                fluid-property aggregation such as STOIIP, saturations and
+                pressure averages).
+            to_unit: Unit policy applied to every ``(keyword, time_step)``
+                column.
                 - ``'output'`` (default): values stored as-is (Output Unit).
                 - ``'internal'``: values converted to CMG's Internal Unit.
                 - any specific unit name (e.g. ``'psi'``, ``'MPa'``, ``'md'``):
@@ -67,15 +69,16 @@ class DataMapper:
                 The matching ``Unit`` level of each column reflects this choice.
 
         Returns:
-            A DataFrame with one float column per ``(keyword, time)`` and one
-            row per grid cell (index ``0 .. n_cells-1``). Columns use a 6-level
-            MultiIndex: ``(Keyword, LongName, Unit, Time, TimeIndex, TimeUnit)``.
+            A DataFrame with one float column per ``(keyword, time_step)`` and
+            one row per grid cell (index ``0 .. n_cells-1``). Columns use a
+            6-level MultiIndex:
+            ``(Keyword, LongName, Unit, Time, TimeIndex, TimeUnit)``.
         """
         # 1. Normalise inputs
         if isinstance(keywords, str):
             keywords = [keywords]
-        if isinstance(times, int):
-            times = [times]
+        if isinstance(time_steps, int):
+            time_steps = [time_steps]
 
         # 2. Resolve the time unit (MasterTimeTable is in days; left as-is)
         time_unit = 'day'
@@ -89,9 +92,9 @@ class DataMapper:
         data_dict = {}
 
         # 4. Iterate over time steps and properties
-        for time_step in times:
+        for time_step in time_steps:
             try:
-                time_value = self.indexer.time_to_offset(time_step)
+                time_value = self.indexer.get_time_offset(time_step)
             except (AttributeError, KeyError):
                 time_value = float(time_step)
 
@@ -129,7 +132,7 @@ class DataMapper:
                         )
                         # Restore label so it matches the unconverted values
                         try:
-                            unit = self.indexer.unit_of(keyword, 'output')
+                            unit = self.indexer.get_unit(keyword, 'output')
                         except Exception:
                             pass
 
@@ -277,7 +280,7 @@ class DataMapper:
     # MODBVOL lives at /SpatialProperties/<step>/MODBVOL (a property);
     # BLOCKPVOL lives at /SpatialProperties/<step>/GRID/BLOCKPVOL (geometry).
     _WEIGHT_SOURCES = {
-        'volume_mean': ('MODBVOL', 'property'),
+        'bulk_volume_mean': ('MODBVOL', 'property'),
         'pore_volume_mean': ('BLOCKPVOL', 'grid_array'),
     }
 
@@ -285,7 +288,7 @@ class DataMapper:
                             time_step: int, total_cells: int):
         """Resolve per-cell weights for a weighted aggregation method.
 
-        Returns ``(weights, effective_method)``. For 'volume_mean' /
+        Returns ``(weights, effective_method)``. For 'bulk_volume_mean' /
         'pore_volume_mean' this fetches the appropriate static volume array
         (MODBVOL or BLOCKPVOL respectively) and broadcasts it per cell via
         ``ICSTPS - 1``. If the weight source is missing, logs a warning and
@@ -297,7 +300,7 @@ class DataMapper:
             return None, agg_method
         keyword, layout = self._WEIGHT_SOURCES[agg_method]
         try:
-            grid_ts = self.indexer.get_nearest_grid_ts(time_step)
+            grid_ts = self.indexer.get_nearest_grid_time_step(time_step)
         except (AttributeError, KeyError):
             grid_ts = time_step
         # Fetch from the layout-appropriate accessor:
@@ -331,7 +334,7 @@ class DataMapper:
         """Fetch and cache geometry info (ICSTPB, ICSTPS, IGNTNC, ICSTCG, inferred levels).
 
         Cache contract: the canonical key is the nearest grid time step
-        (``get_nearest_grid_ts(time_step)``); a ``time_step != grid_ts`` request
+        (``get_nearest_grid_time_step(time_step)``); a ``time_step != grid_ts`` request
         also gets aliased to point at the same info dict, so subsequent calls at
         either step are O(1). Without this two-level aliasing, iterating
         ``map_prop`` across results time steps that all share one geometry step
@@ -341,7 +344,7 @@ class DataMapper:
         if cached is not None:
             return cached
 
-        grid_ts = self.indexer.get_nearest_grid_ts(time_step)
+        grid_ts = self.indexer.get_nearest_grid_time_step(time_step)
         cached = self._geo_cache.get(grid_ts)
         if cached is not None:
             # Alias non-grid time_step to point at the canonical grid_ts entry
@@ -396,7 +399,7 @@ class DataMapper:
 
         Working from the deepest level upward, aggregate child-cell values into
         their parent cells using ``method``. For the weighted methods
-        ``'volume_mean'`` and ``'pore_volume_mean'`` the caller must supply
+        ``'bulk_volume_mean'`` and ``'pore_volume_mean'`` the caller must supply
         ``weights`` as a per-cell array (``MODBVOL`` or ``BLOCKPVOL``
         respectively); :meth:`_weights_for_method` does this dispatch.
         """
@@ -443,7 +446,7 @@ class DataMapper:
                 np.maximum.at(aggs, parents, valid_vals)
                 update_mask = (aggs != -np.inf)
 
-            elif method in ('volume_mean', 'pore_volume_mean'):
+            elif method in ('bulk_volume_mean', 'pore_volume_mean'):
                 if weights is None:
                     logger.warning(
                         f"agg_method={method!r} requires weights; falling back to 'mean'."

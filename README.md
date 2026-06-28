@@ -46,7 +46,7 @@ Highlights:
 - **Pore-volume-weighted aggregation.** `agg_method="pore_volume_mean"`
   weights LGR child-to-parent rollup by `BLOCKPVOL` — the right average for
   fluid properties (pressure, saturations, STOIIP). The bulk-volume
-  variant `agg_method="volume_mean"` (MODBVOL-weighted) is also supported.
+  variant `agg_method="bulk_volume_mean"` (MODBVOL-weighted) is also supported.
 
 `GridBuilder.build` accepts `grid_type` in `available_grid_types()`
 (`"Cartesian"`, `"CornerPoint"`, `"Radial"`) when you need to override

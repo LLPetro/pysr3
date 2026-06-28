@@ -7,7 +7,7 @@ to attach property values.
 ```python
 from pysr3 import SR3Indexer, GridBuilder
 
-with SR3Indexer("test/lgr_nested/lgr_nested.sr3", list_props_ts=None) as sr3:
+with SR3Indexer("test/lgr_nested/lgr_nested.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_mode="mixed")  # grid_type auto-detected from IGNTGT
 ```
 
@@ -96,7 +96,7 @@ Once you have a grid, attach results with `DataMapper`:
 ```python
 from pysr3 import DataMapper
 
-df = DataMapper(sr3).map_prop(grid, keywords=["PRES", "SO"], times=[0])
+df = DataMapper(sr3).map_prop(grid, keywords=["PRES", "SO"], time_steps=[0])
 ```
 
 For grids that contain parent cells (e.g. `grid_mode="level0"`), enable

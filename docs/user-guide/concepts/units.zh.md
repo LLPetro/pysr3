@@ -44,8 +44,8 @@ with SR3Indexer("model.sr3") as sr3:
     df_int = DataMapper(sr3).map_prop(grid, "TEMP", 0, to_unit="internal")
 
     # 查询可用信息
-    print(sr3.unit_of("OILRATSC"))               # 'cm3/min'  (Output)
-    print(sr3.unit_of("OILRATSC", "internal"))   # 'm3/day'   (Internal)
+    print(sr3.get_unit("OILRATSC"))               # 'cm3/min'  (Output)
+    print(sr3.get_unit("OILRATSC", "internal"))   # 'm3/day'   (Internal)
 ```
 
 ## 底层细节
@@ -53,7 +53,7 @@ with SR3Indexer("model.sr3") as sr3:
 ```python
 sr3.units                     # {dim_idx: {output_unit, internal_unit, dimensionality}}
 sr3.unit_conversions          # {dim_idx: {unit_name: (gain, offset)}}
-sr3.unit_of(keyword)          # 在任意策略下返回单位字符串
+sr3.get_unit(keyword)          # 在任意策略下返回单位字符串
 sr3.convert(keyword, values, to_unit)  # 实际换算函数,对数组矢量化处理
 ```
 
@@ -61,6 +61,6 @@ sr3.convert(keyword, values, to_unit)  # 实际换算函数,对数组矢量化�
 
 ## 两个隐性例外
 
-1. **`MasterTimeTable` 时间偏移**始终以 **days** 存储,与文件的 Output Time 单位无关（该列的表头确实就叫 `"Offset in days"`）。`pysr3.time_to_offset()` 直接按 days 返回。流率分母（`OILRATSC = Volume / WellRateTime`）则遵循 Output Unit 设定。
+1. **`MasterTimeTable` 时间偏移**始终以 **days** 存储,与文件的 Output Time 单位无关（该列的表头确实就叫 `"Offset in days"`）。`pysr3.get_time_offset()` 直接按 days 返回。流率分母（`OILRATSC = Volume / WellRateTime`）则遵循 Output Unit 设定。
 
 2. **温度规范化单位为 `C`** —— 在 `UnitConversionTable` 中,而 `UnitsTable.Internal Unit` 中温度记作 `K`。`pysr3.convert` 自动级联 `stored → C → K`;除非你直接读取 UCT,否则无需关心这件事。
