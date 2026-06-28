@@ -16,7 +16,7 @@ from .geometry import (
     hexahedra_from_corners,
     infer_levels,
     refined_parent_ids,
-    segment_ijk,
+    subgrid_ijk,
 )
 
 logger = logging.getLogger(__name__)
@@ -71,14 +71,14 @@ class CartesianGridStrategy(GridStrategy):
         pb_xmin = np.full(total_cells, np.nan, dtype=float)
         pb_ymin = np.full(total_cells, np.nan, dtype=float)
 
-        num_segments = len(igntid)
-        for seg_idx in range(num_segments):
-            start = igntnc[seg_idx]
-            end = igntnc[seg_idx + 1] if seg_idx < num_segments - 1 else total_cells
+        n_subgrids = len(igntid)
+        for subgrid_idx in range(n_subgrids):
+            start = igntnc[subgrid_idx]
+            end = igntnc[subgrid_idx + 1] if subgrid_idx < n_subgrids - 1 else total_cells
             if end - start == 0:
                 continue
 
-            ni, nj, nk = igntid[seg_idx], igntjd[seg_idx], igntkd[seg_idx]
+            ni, nj, nk = igntid[subgrid_idx], igntjd[subgrid_idx], igntkd[subgrid_idx]
             dx = dx_all[start:end]
             dy = dy_all[start:end]
             dz = dz_all[start:end]
@@ -89,7 +89,7 @@ class CartesianGridStrategy(GridStrategy):
                 dy_3d = dy.reshape((nk, nj, ni))
             except ValueError:
                 logger.error(
-                    f"Segment {seg_idx} reshape failed: count={end - start}, dims=({nk},{nj},{ni})"
+                    f"Sub-grid {subgrid_idx} reshape failed: count={end - start}, dims=({nk},{nj},{ni})"
                 )
                 raise
 
@@ -98,19 +98,19 @@ class CartesianGridStrategy(GridStrategy):
             z_min[start:end] = z_center_coord - z_half
             z_max[start:end] = z_center_coord + z_half
 
-            if seg_idx == 0:
+            if subgrid_idx == 0:
                 # Level 0: absolute coordinates anchored at the origin.
                 origin_x = 0.0
                 origin_y = 0.0
             else:
                 # LGR: anchor to the lower-left corner of the refined parents.
-                # NOTE: assumes one segment refines a single contiguous parent
-                # box. Segments that group multiple parents are not handled.
+                # NOTE: assumes one sub-grid refines a single contiguous parent
+                # box. Sub-grids that group multiple parents are not handled.
                 parents = icstpb[start:end] - 1
                 p_xmin = pb_xmin[parents]
                 p_ymin = pb_ymin[parents]
                 if np.any(np.isnan(p_xmin)):
-                    raise RuntimeError(f"Segment {seg_idx}: Parent bounds not ready.")
+                    raise RuntimeError(f"Sub-grid {subgrid_idx}: Parent bounds not ready.")
                 origin_x = float(np.min(p_xmin))
                 origin_y = float(np.min(p_ymin))
 
@@ -136,9 +136,9 @@ class CartesianGridStrategy(GridStrategy):
                 # Refined parents are structurally inactive (children replace
                 # them), not physically inactive — re-include them so they can
                 # serve as landing sites for LGR aggregation.
-                rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
-                if rp.size:
-                    active[rp] = True
+                refined_parents = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
+                if refined_parents.size:
+                    active[refined_parents] = True
             keep_mask &= active
         keep_mask &= grid_mode_keep_mask(grid_mode, level, icstpb, igntnc, icstcg=icstcg)
 
@@ -164,7 +164,7 @@ class CartesianGridStrategy(GridStrategy):
         cells, cell_types, points = hexahedra_from_corners(corners)
         grid = pv.UnstructuredGrid(cells, cell_types, points)
 
-        i_arr, j_arr, k_arr = segment_ijk(igntid, igntjd, igntkd, igntnc, total_cells)
+        i_arr, j_arr, k_arr = subgrid_ijk(igntid, igntjd, igntkd, igntnc, total_cells)
         parent_i, parent_j, parent_k = compute_parent_ijk(icstpb, level, i_arr, j_arr, k_arr)
 
         grid.cell_data["PropGlobalID"] = icstps[indices].astype(np.int32) - 1

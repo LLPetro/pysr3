@@ -24,7 +24,7 @@ from .geometry import (
     grid_mode_keep_mask,
     infer_levels,
     refined_parent_ids,
-    segment_ijk,
+    subgrid_ijk,
 )
 
 logger = logging.getLogger(__name__)
@@ -59,9 +59,9 @@ class CornerPointGridStrategy(GridStrategy):
         if not include_inactive:
             active = active_cell_mask(icstps, data)
             if keep_refined_parents and icstpb is not None and igntnc is not None:
-                rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
-                if rp.size:
-                    active[rp] = True
+                refined_parents = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
+                if refined_parents.size:
+                    active[refined_parents] = True
             keep_mask &= active
         if icstpb is not None and igntnc is not None:
             keep_mask &= grid_mode_keep_mask(grid_mode, level, icstpb, igntnc, icstcg=icstcg)
@@ -103,7 +103,7 @@ class CornerPointGridStrategy(GridStrategy):
         k_arr = np.full(total_cells, -1, dtype=np.int32)
         if all(k in data for k in ("IGNTID", "IGNTJD", "IGNTKD")) and igntnc is not None:
             try:
-                i_arr, j_arr, k_arr = segment_ijk(
+                i_arr, j_arr, k_arr = subgrid_ijk(
                     data["IGNTID"], data["IGNTJD"], data["IGNTKD"], igntnc, total_cells
                 )
             except Exception as exc:  # noqa: BLE001
@@ -174,15 +174,15 @@ class CornerPointGridStrategy(GridStrategy):
 
         expected_cells = 0
         expected_nodes = 0
-        for seg_idx, (ni, nj, nk) in enumerate(zip(igntid, igntjd, igntkd)):
-            start = int(igntnc[seg_idx])
-            end = int(igntnc[seg_idx + 1]) if seg_idx < len(igntid) - 1 else total_cells
+        for subgrid_idx, (ni, nj, nk) in enumerate(zip(igntid, igntjd, igntkd)):
+            start = int(igntnc[subgrid_idx])
+            end = int(igntnc[subgrid_idx + 1]) if subgrid_idx < len(igntid) - 1 else total_cells
             expected_cells += end - start
             expected_nodes += int((ni + 1) * (nj + 1) * (nk + 1))
 
         if expected_cells != total_cells:
             raise ValueError(
-                f"Compressed corner segment cell count {expected_cells} "
+                f"Compressed corner sub-grid cell count {expected_cells} "
                 f"does not match ICSTPS length {total_cells}"
             )
         if xcorn.size != expected_nodes:
@@ -196,14 +196,14 @@ class CornerPointGridStrategy(GridStrategy):
         blocks = np.zeros((total_cells, 8), dtype=np.int64)
 
         node_offset = 0
-        for seg_idx, (ni_raw, nj_raw, nk_raw) in enumerate(zip(igntid, igntjd, igntkd)):
+        for subgrid_idx, (ni_raw, nj_raw, nk_raw) in enumerate(zip(igntid, igntjd, igntkd)):
             ni, nj, nk = int(ni_raw), int(nj_raw), int(nk_raw)
-            cell_start = int(igntnc[seg_idx])
-            cell_end = int(igntnc[seg_idx + 1]) if seg_idx < len(igntid) - 1 else total_cells
+            cell_start = int(igntnc[subgrid_idx])
+            cell_end = int(igntnc[subgrid_idx + 1]) if subgrid_idx < len(igntid) - 1 else total_cells
             segment_cells = ni * nj * nk
             if cell_end - cell_start != segment_cells:
                 raise ValueError(
-                    f"Compressed corner segment {seg_idx} has {cell_end - cell_start} cells, "
+                    f"Compressed corner segment {subgrid_idx} has {cell_end - cell_start} cells, "
                     f"but dimensions imply {segment_cells}"
                 )
 

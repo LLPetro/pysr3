@@ -102,7 +102,7 @@ class GridBuilder:
                 f"({detected!r}) in {file_path!r}; honoring the user value"
             )
 
-        logger.info(f"Building grid: type={grid_type}, mode={grid_mode}, step={time_step}")
+        logger.info(f"Building grid: grid_type={grid_type}, grid_mode={grid_mode}, time_step={time_step}")
         strategy = get_strategy(grid_type, self.indexer)
         grid = strategy.build(
             data=data,

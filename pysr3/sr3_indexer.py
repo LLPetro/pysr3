@@ -90,15 +90,15 @@ class SR3Indexer:
         
         # --- Time & Grid Index ---
         self.time_index: Dict[str, Any] = {
-            'spatial_time_indices': [], # List of int
-            'time_to_offset': {},          # step_idx -> days (float)
-            'time_to_date': {}         # step_idx -> date string
+            'spatial_time_steps': [],     # list[int] — every step index in /SpatialProperties
+            'step_to_time_offset': {},    # step int -> days (float)
+            'step_to_date': {},           # step int -> date string
         }
         
         self.spatial_props: Dict[str, Any] = {
-            'timesteps': [],        # List of str keys ("000000")
-            'properties_by_ts': {}, # step_idx -> List[str]
-            'grid_timesteps': []    # List of int containing GRID
+            'spatial_step_keys': [],     # list[str] — zero-padded keys ("000000") used for HDF5 path construction
+            'properties_by_step': {},    # step int -> list[str]
+            'grid_time_steps': [],       # list[int] — subset of steps at which /GRID is written
         }
         
         # --- TimeSeries (per-entity index: WELLS, LAYERS, GROUPS, SECTORS, ...) ---
@@ -114,7 +114,7 @@ class SR3Indexer:
             self._load_name_records()
             self._load_time_index()
             self._index_spatial_properties(list_props_ts=list_props_ts)
-            self._detect_grid_timesteps()
+            self._detect_grid_time_steps()
             self._load_timeseries_index()
         except Exception as e:
             logger.error(f"Initialization failed for {file_path}: {e}")
@@ -384,9 +384,9 @@ class SR3Indexer:
 
                 self.name_records[key] = {
                     'name': name,
-                    'unit': unit_out,            # default label: Output Unit
-                    'unit_internal': unit_int,   # CMG simulator's Internal Unit
-                    'dim_token': dim_key,        # raw token, needed for conversion
+                    'output_unit': unit_out,      # default label: Output Unit
+                    'internal_unit': unit_int,    # CMG simulator's Internal Unit
+                    'dim_token': dim_key,         # raw token, needed for conversion
                     'size_ref': size_ref,
                 }
         except Exception as e:
@@ -575,7 +575,7 @@ class SR3Indexer:
 
                 # Ensure storage exists
                 if 'time_to_date' not in self.time_index:
-                    self.time_index['time_to_date'] = {}
+                    self.time_index['step_to_date'] = {}
 
                 for row in mtt:
                     idx = int(row[idx_col])
@@ -584,11 +584,11 @@ class SR3Indexer:
                     time_val = self._parse_time_to_offset(row[off_col])
                     if time_val is None:
                         time_val = float(idx)
-                    self.time_index['time_to_offset'][idx] = time_val
+                    self.time_index['step_to_time_offset'][idx] = time_val
                     
                     # Date Value
                     if date_col:
-                        self.time_index['time_to_date'][idx] = self._decode_bytes(row[date_col])
+                        self.time_index['step_to_date'][idx] = self._decode_bytes(row[date_col])
         except Exception as e:
             logger.warning(f"Failed to load MasterTimeTable: {e}")
 
@@ -618,35 +618,35 @@ class SR3Indexer:
         sp = self.handle['SpatialProperties']
         # Filter for numeric keys
         steps = sorted([k for k in sp.keys() if k.isdigit()], key=lambda x: int(x))
-        self.spatial_props['timesteps'] = steps
+        self.spatial_props['spatial_step_keys'] = steps
         
         # Index properties for requested steps
         for i, step_key in enumerate(steps):
-            step_idx = int(step_key)
-            self.time_index['spatial_time_indices'].append(step_idx)
-            
+            time_step = int(step_key)
+            self.time_index['spatial_time_steps'].append(time_step)
+
             # If list_props_ts is set, only index first N steps
             if list_props_ts is not None and i >= list_props_ts:
                 continue
-                
-            self.spatial_props['properties_by_ts'][step_idx] = self._list_step_properties(step_idx)
 
-    def _list_step_properties(self, step_idx: int) -> List[str]:
-        """List non-GRID dataset names under a SpatialProperties timestep."""
-        path = f"SpatialProperties/{step_idx:06d}"
+            self.spatial_props['properties_by_step'][time_step] = self._list_step_properties(time_step)
+
+    def _list_step_properties(self, time_step: int) -> List[str]:
+        """List non-GRID dataset names under a SpatialProperties time-step."""
+        path = f"SpatialProperties/{time_step:06d}"
         if path not in self.handle:
             return []
         grp = self.handle[path]
         return [k for k in grp.keys() if k != 'GRID' and isinstance(grp[k], h5py.Dataset)]
 
-    def _detect_grid_timesteps(self):
+    def _detect_grid_time_steps(self):
         """Find which steps have GRID definition."""
         if 'SpatialProperties' not in self.handle:
             return
             
-        for step_key in self.spatial_props['timesteps']:
+        for step_key in self.spatial_props['spatial_step_keys']:
             if 'GRID' in self.handle[f"SpatialProperties/{step_key}"]:
-                self.spatial_props['grid_timesteps'].append(int(step_key))
+                self.spatial_props['grid_time_steps'].append(int(step_key))
 
     def _load_timeseries_index(self):
         """Index /TimeSeries entities without loading large data arrays."""
@@ -662,7 +662,7 @@ class SR3Indexer:
             try:
                 origins = []
                 variables = []
-                timesteps = []
+                time_steps = []
                 shape = (0, 0, 0)
 
                 if 'Origins' in entity:
@@ -670,7 +670,7 @@ class SR3Indexer:
                 if 'Variables' in entity:
                     variables = [self._decode_bytes(v) for v in entity['Variables'][()]]
                 if 'Timesteps' in entity:
-                    timesteps = [int(v) for v in entity['Timesteps'][()]]
+                    time_steps = [int(v) for v in entity['Timesteps'][()]]
                 if 'Data' in entity:
                     shape = entity['Data'].shape
 
@@ -678,7 +678,7 @@ class SR3Indexer:
                     'name': entity_name,
                     'origins': origins,
                     'variables': variables,
-                    'timesteps': timesteps,
+                    'time_steps': time_steps,
                     'shape': shape,
                 }
             except Exception as e:
@@ -733,24 +733,21 @@ class SR3Indexer:
             The 1-D NumPy array, or ``None`` if no dataset for that keyword
             exists at the resolved step or in its GRID group.
         """
-        # Resolve timestep
-        ts_idx = timestep
+        # Resolve to an integer step (snap floats to the nearest indexed step).
+        time_step = timestep
         if isinstance(timestep, float):
-            # time_to_offset is a small dict of {step_idx: days}; a linear
+            # step_to_time_offset is a small dict of {step: days}; a linear
             # scan beats building a sorted index for one-off lookups.
-            best_ts = -1
+            best_step = -1
             min_diff = float('inf')
-            for t_idx, t_val in self.time_index['time_to_offset'].items():
-                diff = abs(t_val - timestep)
+            for step, offset_days in self.time_index['step_to_time_offset'].items():
+                diff = abs(offset_days - timestep)
                 if diff < min_diff:
                     min_diff = diff
-                    best_ts = t_idx
-            if best_ts != -1:
-                ts_idx = best_ts
-            else:
-                ts_idx = int(timestep) # Fallback
-        
-        path = f"SpatialProperties/{int(ts_idx):06d}/{name}"
+                    best_step = step
+            time_step = best_step if best_step != -1 else int(timestep)
+
+        path = f"SpatialProperties/{int(time_step):06d}/{name}"
         if path in self.handle:
             return self.handle[path][()]
         # Fall back to /GRID/ — some static arrays (BLOCKPVOL, BLOCKSIZE, etc.)
@@ -758,26 +755,26 @@ class SR3Indexer:
         # via the same NameRecordTable.Dimensionality. Since /GRID/ is only
         # written at grid time steps, resolve to the nearest one before lookup
         # so the call works for any results time step.
-        grid_ts = self.get_nearest_grid_ts(int(ts_idx))
-        grid_path = f"SpatialProperties/{int(grid_ts):06d}/GRID/{name}"
+        grid_time_step = self.get_nearest_grid_ts(int(time_step))
+        grid_path = f"SpatialProperties/{int(grid_time_step):06d}/GRID/{name}"
         if grid_path in self.handle:
             return self.handle[grid_path][()]
         return None
 
     def get_available_properties(self, ts: Optional[int] = None) -> List[str]:
-        """Get list of properties for a timestep."""
-        if not self.time_index['spatial_time_indices']:
+        """Get list of properties for a time-step."""
+        if not self.time_index['spatial_time_steps']:
             return []
-            
-        target_ts = ts if ts is not None else self.time_index['spatial_time_indices'][0]
-        
+
+        time_step = ts if ts is not None else self.time_index['spatial_time_steps'][0]
+
         # Check cache
-        if target_ts in self.spatial_props['properties_by_ts']:
-            return self.spatial_props['properties_by_ts'][target_ts]
-            
+        if time_step in self.spatial_props['properties_by_step']:
+            return self.spatial_props['properties_by_step'][time_step]
+
         # Fetch on demand and cache
-        props = self._list_step_properties(target_ts)
-        self.spatial_props['properties_by_ts'][target_ts] = props
+        props = self._list_step_properties(time_step)
+        self.spatial_props['properties_by_step'][time_step] = props
         return props
 
     def get_timeseries_entities(self) -> List[str]:
@@ -792,7 +789,7 @@ class SR3Indexer:
                 'name': entity,
                 'origins': [],
                 'variables': [],
-                'timesteps': [],
+                'time_steps': [],
                 'shape': (0, 0, 0),
             }
         return self.timeseries[key]
@@ -828,16 +825,16 @@ class SR3Indexer:
 
         all_origins = list(info.get('origins', []))
         all_variables = list(info.get('variables', []))
-        all_timesteps = list(info.get('timesteps', []))
+        all_time_steps = list(info.get('time_steps', []))
         data = self.handle[path][()]
 
         if data.ndim != 3:
             raise ValueError(f"TimeSeries/{key}/Data must be 3D, got shape {data.shape}")
 
         n_times, n_vars, n_origins = data.shape
-        if len(all_timesteps) != n_times:
-            logger.warning(f"TimeSeries/{key}: Timesteps length {len(all_timesteps)} does not match data axis {n_times}")
-            all_timesteps = all_timesteps[:n_times] or list(range(n_times))
+        if len(all_time_steps) != n_times:
+            logger.warning(f"TimeSeries/{key}: Timesteps length {len(all_time_steps)} does not match data axis {n_times}")
+            all_time_steps = all_time_steps[:n_times] or list(range(n_times))
         if len(all_variables) != n_vars:
             logger.warning(f"TimeSeries/{key}: Variables length {len(all_variables)} does not match data axis {n_vars}")
             all_variables = all_variables[:n_vars]
@@ -847,7 +844,7 @@ class SR3Indexer:
 
         origin_indices = self._resolve_name_indices(all_origins, origins, 'origin')
         variable_indices = self._resolve_name_indices(all_variables, variables, 'variable')
-        timestep_indices = self._resolve_timestep_indices(all_timesteps, timesteps)
+        time_step_indices = self._resolve_time_step_indices(all_time_steps, timesteps)
 
         if drop_empty_origins:
             origin_indices = [i for i in origin_indices if i < len(all_origins) and all_origins[i] != ""]
@@ -872,8 +869,8 @@ class SR3Indexer:
                     var_units[v_idx] = self.unit_of(var_name, 'output')
 
         records = []
-        for t_pos in timestep_indices:
-            ts = int(all_timesteps[t_pos])
+        for t_pos in time_step_indices:
+            ts = int(all_time_steps[t_pos])
             time_value = self.time_to_offset(ts)
             date_value = self.time_index.get('time_to_date', {}).get(ts)
 
@@ -913,16 +910,16 @@ class SR3Indexer:
             raise ValueError(f"Unknown TimeSeries {label}(s): {missing}")
         return [name_to_index[name] for name in selected]
 
-    def _resolve_timestep_indices(self, timesteps: List[int], selected: Optional[List[int]]) -> List[int]:
-        """Resolve timestep values to positions in the TimeSeries time axis."""
+    def _resolve_time_step_indices(self, time_steps: List[int], selected: Optional[List[int]]) -> List[int]:
+        """Resolve time-step values to positions in the TimeSeries time axis."""
         if selected is None:
-            return list(range(len(timesteps)))
+            return list(range(len(time_steps)))
 
-        ts_to_index = {int(ts): i for i, ts in enumerate(timesteps)}
-        missing = [int(ts) for ts in selected if int(ts) not in ts_to_index]
+        step_to_index = {int(s): i for i, s in enumerate(time_steps)}
+        missing = [int(s) for s in selected if int(s) not in step_to_index]
         if missing:
-            raise ValueError(f"Unknown TimeSeries timestep(s): {missing}")
-        return [ts_to_index[int(ts)] for ts in selected]
+            raise ValueError(f"Unknown TimeSeries time step(s): {missing}")
+        return [step_to_index[int(s)] for s in selected]
 
     def get_well_data(self,
                       well_names: Optional[List[str]] = None,
@@ -988,7 +985,7 @@ class SR3Indexer:
         try:
             unit = self.unit_of(record_key, to_unit=to_unit)
         except ValueError:
-            unit = record.get('unit', '')
+            unit = record.get('output_unit', '')
         size_ref = record['size_ref']
         
         # 3. Resolve Component
@@ -1025,13 +1022,13 @@ class SR3Indexer:
         }
 
     def get_grid_time_steps(self) -> List[int]:
-        return self.spatial_props['grid_timesteps']
+        return self.spatial_props['grid_time_steps']
 
     def get_available_times(self) -> List[int]:
-        return self.time_index['spatial_time_indices']
+        return self.time_index['spatial_time_steps']
 
     def time_to_offset(self, ts: int) -> float:
-        return self.time_index['time_to_offset'].get(ts, float(ts))
+        return self.time_index['step_to_time_offset'].get(ts, float(ts))
 
     def get_nearest_grid_ts(self, time_step: int) -> int:
         """

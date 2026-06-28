@@ -95,46 +95,46 @@ class DataMapper:
             except (AttributeError, KeyError):
                 time_value = float(time_step)
 
-            for kw in keywords:
+            for keyword in keywords:
                 # Resolve property metadata under the requested unit policy
                 try:
-                    prop_info = self.indexer.get_property_info(kw, to_unit=to_unit)
+                    prop_info = self.indexer.get_property_info(keyword, to_unit=to_unit)
                 except (AttributeError, TypeError):
                     # Older indexers don't accept to_unit; fall back to default
                     try:
-                        prop_info = self.indexer.get_property_info(kw)
+                        prop_info = self.indexer.get_property_info(keyword)
                     except AttributeError:
                         prop_info = {}
 
-                long_name = prop_info.get('display_name', kw)
+                long_name = prop_info.get('display_name', keyword)
                 unit = prop_info.get('unit', '')
 
                 # Map the property
                 try:
                     mapped_values = self._map_single_property(
-                        grid, kw, time_step, aggregate, agg_method
+                        grid, keyword, time_step, aggregate, agg_method
                     )
                 except Exception as e:
-                    logger.error(f"Failed to map property '{kw}' at step {time_step}: {e}")
+                    logger.error(f"Failed to map property {keyword!r} at step {time_step}: {e}")
                     mapped_values = np.full(grid.n_cells, np.nan)
 
                 # Apply unit conversion if requested (NaNs propagate through)
                 if to_unit != 'output' and hasattr(self.indexer, 'convert'):
                     try:
-                        mapped_values = self.indexer.convert(kw, mapped_values, to_unit)
+                        mapped_values = self.indexer.convert(keyword, mapped_values, to_unit)
                     except ValueError as exc:
                         logger.warning(
-                            f"map_prop({kw!r}, to_unit={to_unit!r}): {exc}; "
+                            f"map_prop({keyword!r}, to_unit={to_unit!r}): {exc}; "
                             f"leaving values in output units"
                         )
                         # Restore label so it matches the unconverted values
                         try:
-                            unit = self.indexer.unit_of(kw, 'output')
+                            unit = self.indexer.unit_of(keyword, 'output')
                         except Exception:
                             pass
 
                 # Build the column key
-                col_key = (kw, long_name, unit, time_value, time_step, time_unit)
+                col_key = (keyword, long_name, unit, time_value, time_step, time_unit)
                 data_dict[col_key] = mapped_values
 
         # 5. Assemble the DataFrame
@@ -148,19 +148,19 @@ class DataMapper:
 
     def _map_single_property(self,
                              grid: pv.UnstructuredGrid,
-                             prop_name: str,
+                             keyword: str,
                              time_step: int,
                              aggregate: bool,
                              agg_method: str) -> np.ndarray:
         """Map a single property, dispatching to direct or aggregated mapping."""
         if not aggregate:
-            return self._direct_map(grid, prop_name, time_step)
+            return self._direct_map(grid, keyword, time_step)
         else:
-            return self._aggregated_map(grid, prop_name, time_step, agg_method)
+            return self._aggregated_map(grid, keyword, time_step, agg_method)
 
     def _direct_map(self,
                     grid: pv.UnstructuredGrid,
-                    prop_name: str,
+                    keyword: str,
                     time_step: int) -> np.ndarray:
         """Direct mapping: ``PropGlobalID -> prop_data``.
 
@@ -168,32 +168,32 @@ class DataMapper:
         aggregation.
         """
         # 1. Fetch the raw property array
-        prop_data = self.indexer.get_property_data(prop_name, time_step)
+        prop_data = self.indexer.get_property_data(keyword, time_step)
         if prop_data is None:
-            logger.warning(f"Property '{prop_name}' not found at step {time_step}.")
+            logger.warning(f"Property '{keyword}' not found at step {time_step}.")
             return np.full(grid.n_cells, np.nan)
 
         # 2. Read PropGlobalID
         if 'PropGlobalID' not in grid.cell_data:
             raise ValueError("Grid missing 'PropGlobalID' array. Cannot map data.")
 
-        prop_ids = grid.cell_data['PropGlobalID']
+        prop_slots = grid.cell_data['PropGlobalID']
         n_props = len(prop_data)
 
         # 3. Map directly, leaving out-of-range ids as NaN
-        valid_mask = (prop_ids >= 0) & (prop_ids < n_props)
+        valid_mask = (prop_slots >= 0) & (prop_slots < n_props)
         mapped_values = np.full(grid.n_cells, np.nan, dtype=np.float32)
-        mapped_values[valid_mask] = prop_data[prop_ids[valid_mask]]
+        mapped_values[valid_mask] = prop_data[prop_slots[valid_mask]]
 
         n_invalid = np.sum(~valid_mask)
         if n_invalid > 0:
-            logger.debug(f"Property '{prop_name}': {n_invalid} cells have invalid PropGlobalID")
+            logger.debug(f"Property '{keyword}': {n_invalid} cells have invalid PropGlobalID")
 
         return mapped_values
 
     def _aggregated_map(self,
                         grid: pv.UnstructuredGrid,
-                        prop_name: str,
+                        keyword: str,
                         time_step: int,
                         agg_method: str) -> np.ndarray:
         """Aggregated mapping.
@@ -205,9 +205,9 @@ class DataMapper:
         ``keep_refined_parents=True``, the default).
         """
         # 1. Fetch the raw property array
-        prop_data = self.indexer.get_property_data(prop_name, time_step)
+        prop_data = self.indexer.get_property_data(keyword, time_step)
         if prop_data is None:
-            logger.warning(f"Property '{prop_name}' not found at step {time_step}.")
+            logger.warning(f"Property '{keyword}' not found at step {time_step}.")
             return np.full(grid.n_cells, np.nan)
 
         # 2. Fetch geometry info
@@ -223,34 +223,34 @@ class DataMapper:
         # 3. Build a full array in GlobalCellID space
         full_values = np.full(total_cells, np.nan, dtype=np.float32)
         valid_mask = (icstps > 0)
-        prop_indices = icstps[valid_mask] - 1
+        prop_slots = icstps[valid_mask] - 1
 
         # Bounds check
-        if len(prop_indices) > 0 and prop_indices.max() >= len(prop_data):
-            logger.error(f"ICSTPS index out of bounds for property '{prop_name}'")
-            valid_in_bounds = prop_indices < len(prop_data)
+        if len(prop_slots) > 0 and prop_slots.max() >= len(prop_data):
+            logger.error(f"ICSTPS index out of bounds for property '{keyword}'")
+            valid_in_bounds = prop_slots < len(prop_data)
             valid_mask_indices = np.where(valid_mask)[0]
             safe_indices = valid_mask_indices[valid_in_bounds]
-            safe_prop_indices = prop_indices[valid_in_bounds]
-            full_values[safe_indices] = prop_data[safe_prop_indices]
+            valid_prop_slots = prop_slots[valid_in_bounds]
+            full_values[safe_indices] = prop_data[valid_prop_slots]
         else:
-            full_values[valid_mask] = prop_data[prop_indices]
+            full_values[valid_mask] = prop_data[prop_slots]
 
         # 4. NaN-init refined-parent slots so their (possibly stale) own-slot
         #    values don't survive aggregation
-        rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
-        if rp.size:
-            full_values[rp] = np.nan
+        refined_parents = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
+        if refined_parents.size:
+            full_values[refined_parents] = np.nan
 
         # 5. Diagnose silent-no-op: file has refined parents but the grid
         #    contains none of them -> aggregation can't land anywhere.
         if 'GlobalCellID' not in grid.cell_data:
             raise ValueError("Grid missing 'GlobalCellID' array. Cannot map aggregated data.")
         global_ids = grid.cell_data['GlobalCellID']
-        if rp.size > 0 and not np.isin(rp, global_ids).any():
+        if refined_parents.size > 0 and not np.isin(refined_parents, global_ids).any():
             logger.warning(
                 f"DataMapper.map_prop(aggregate=True): the grid contains 0 of "
-                f"{rp.size} LGR-refined parent cells; aggregation has no landing "
+                f"{refined_parents.size} LGR-refined parent cells; aggregation has no landing "
                 f"site and will be a no-op for this grid. Rebuild with "
                 f"GridBuilder.build(..., keep_refined_parents=True) (default) "
                 f"or include_inactive=True."
@@ -388,7 +388,7 @@ class DataMapper:
     def _aggregate_values(self,
                           full_values: np.ndarray,
                           icstpb: np.ndarray,
-                          levels: np.ndarray,
+                          level: np.ndarray,
                           max_level: int,
                           method: str,
                           weights: Optional[np.ndarray] = None) -> np.ndarray:
@@ -402,9 +402,9 @@ class DataMapper:
         """
         N = len(full_values)
 
-        for lvl in range(max_level, 0, -1):
+        for level_idx in range(max_level, 0, -1):
             # 1. Find the child cells at this level
-            child_indices = np.where(levels == lvl)[0]
+            child_indices = np.where(level == level_idx)[0]
             if len(child_indices) == 0:
                 continue
 
@@ -448,7 +448,7 @@ class DataMapper:
                     logger.warning(
                         f"agg_method={method!r} requires weights; falling back to 'mean'."
                     )
-                    return self._aggregate_values(full_values, icstpb, levels, max_level, 'mean')
+                    return self._aggregate_values(full_values, icstpb, level, max_level, 'mean')
                 w_child = weights[valid_children]
                 ok = np.isfinite(w_child) & (w_child > 0)
                 if not ok.any():
@@ -464,7 +464,7 @@ class DataMapper:
 
             else:
                 logger.warning(f"Unknown aggregation method '{method}', defaulting to mean.")
-                return self._aggregate_values(full_values, icstpb, levels, max_level, 'mean')
+                return self._aggregate_values(full_values, icstpb, level, max_level, 'mean')
 
             # 5. Write aggregated values back into the parents
             full_values[update_mask] = aggs[update_mask]

@@ -17,7 +17,7 @@ from .geometry import (
     infer_levels,
     parse_kdir,
     refined_parent_ids,
-    segment_ijk,
+    subgrid_ijk,
 )
 
 logger = logging.getLogger(__name__)
@@ -47,7 +47,7 @@ class RadialGridStrategy(GridStrategy):
 
         total_cells = len(icstps)
         level = infer_levels(icstpb, igntnc)
-        i_full, j_full, k_full = segment_ijk(igntid, igntjd, igntkd, igntnc, total_cells)
+        i_full, j_full, k_full = subgrid_ijk(igntid, igntjd, igntkd, igntnc, total_cells)
 
         if blocksize.size != total_cells * 3:
             raise ValueError(f"Radial BLOCKSIZE shape {blocksize.shape} mismatch.")
@@ -68,23 +68,23 @@ class RadialGridStrategy(GridStrategy):
         else:
             active_full = active_cell_mask(icstps, data)
             if keep_refined_parents:
-                rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
-                if rp.size:
-                    active_full[rp] = True
+                refined_parents = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
+                if refined_parents.size:
+                    active_full[refined_parents] = True
 
-        # Per-segment corner arrays and cell data, concatenated once at the end.
+        # Per-subgrid corner arrays and cell data, concatenated once at the end.
         corner_cols = [[] for _ in range(8)]
         data_cols: Dict[str, list] = {k: [] for k in ("gid", "prop", "level", "i", "j", "k")}
 
-        num_segments = len(igntid)
-        for seg_idx in range(num_segments):
-            start = igntnc[seg_idx]
-            end = igntnc[seg_idx + 1] if seg_idx < num_segments - 1 else total_cells
+        n_subgrids = len(igntid)
+        for subgrid_idx in range(n_subgrids):
+            start = igntnc[subgrid_idx]
+            end = igntnc[subgrid_idx + 1] if subgrid_idx < n_subgrids - 1 else total_cells
             if end - start == 0:
                 continue
 
-            ni, nj, nk = igntid[seg_idx], igntjd[seg_idx], igntkd[seg_idx]
-            r0 = wellradius[seg_idx] if seg_idx < len(wellradius) else 0.0
+            ni, nj, nk = igntid[subgrid_idx], igntjd[subgrid_idx], igntkd[subgrid_idx]
+            r0 = wellradius[subgrid_idx] if subgrid_idx < len(wellradius) else 0.0
 
             dr = dr_all[start:end].reshape((nk, nj, ni))
             arc_length = arc_length_all[start:end].reshape((nk, nj, ni))

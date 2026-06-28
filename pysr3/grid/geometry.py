@@ -21,7 +21,7 @@ __all__ = [
     "parse_kdir",
     "hexahedra_from_corners",
     "polygon_cells",
-    "segment_ijk",
+    "subgrid_ijk",
     "compute_parent_ijk",
 ]
 
@@ -116,7 +116,7 @@ def grid_mode_keep_mask(
     igntnc: np.ndarray | None,
     icstcg: np.ndarray | None = None,
 ) -> np.ndarray:
-    """Boolean keep-mask for the requested display mode (geometry/level only).
+    """Boolean keep-mask for the requested grid_mode (geometry/level only).
 
     Modes:
         - ``mixed``  : drop parents that were replaced by LGR children.
@@ -227,17 +227,19 @@ def polygon_cells(
 # --------------------------------------------------------------------------- #
 # Structured I/J/K indexing
 # --------------------------------------------------------------------------- #
-def segment_ijk(
+def subgrid_ijk(
     igntid: np.ndarray,
     igntjd: np.ndarray,
     igntkd: np.ndarray,
     igntnc: np.ndarray,
     total_cells: int,
 ) -> Tuple[np.ndarray, np.ndarray, np.ndarray]:
-    """Generate per-cell local I/J/K indices for all structured segments.
+    """Generate per-cell local I/J/K indices for every structured sub-grid.
 
-    Cells are assumed laid out C-order ``(K, J, I)`` within each segment, with
-    I varying fastest -- matching CMG's SR3 segment layout.
+    Each entry of ``IGNTID/JD/KD`` describes one sub-grid (the top-level matrix
+    plus every LGR refinement); ``IGNTNC`` gives the cumulative CS-index bounds.
+    Cells within each sub-grid are laid out C-order ``(K, J, I)`` with I varying
+    fastest — matching CMG's SR3 storage convention.
     """
     i_arr = np.full(total_cells, -1, dtype=np.int32)
     j_arr = np.full(total_cells, -1, dtype=np.int32)
@@ -247,14 +249,16 @@ def segment_ijk(
     igntjd = np.asarray(igntjd)
     igntkd = np.asarray(igntkd)
     igntnc = np.asarray(igntnc)
-    n_seg = len(igntid)
+    n_subgrids = len(igntid)
 
-    for seg in range(n_seg):
-        start = int(igntnc[seg])
-        end = int(igntnc[seg + 1]) if seg < n_seg - 1 else total_cells
+    for subgrid_idx in range(n_subgrids):
+        start = int(igntnc[subgrid_idx])
+        end = int(igntnc[subgrid_idx + 1]) if subgrid_idx < n_subgrids - 1 else total_cells
         if end <= start:
             continue
-        ni, nj, nk = int(igntid[seg]), int(igntjd[seg]), int(igntkd[seg])
+        ni = int(igntid[subgrid_idx])
+        nj = int(igntjd[subgrid_idx])
+        nk = int(igntkd[subgrid_idx])
         k_grid, j_grid, i_grid = np.meshgrid(
             np.arange(nk), np.arange(nj), np.arange(ni), indexing="ij"
         )

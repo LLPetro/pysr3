@@ -14,7 +14,7 @@ from typing import Dict
 import numpy as np
 import pyvista as pv
 
-from .geometry import polygon_cells, segment_ijk
+from .geometry import polygon_cells, subgrid_ijk
 
 logger = logging.getLogger(__name__)
 
@@ -157,7 +157,7 @@ def _attach_host_ijk(grid: pv.UnstructuredGrid, host_ids: np.ndarray, data: Dict
         return
 
     total_cells = len(np.asarray(data.get("ICSTPS", [])))
-    full_i, full_j, full_k = segment_ijk(
+    full_i, full_j, full_k = subgrid_ijk(
         data["IGNTID"], data["IGNTJD"], data["IGNTKD"], data["IGNTNC"], total_cells
     )
 
