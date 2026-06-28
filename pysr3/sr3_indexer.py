@@ -65,6 +65,9 @@ class SR3Indexer:
         }
         
         self.units: Dict[int, Dict[str, str]] = {}  # ID -> {output, internal, dimension}
+        # CMG-provided unit conversion table: dim_idx -> {unit_name: (gain, offset)}
+        # Formula: canonical_value = stored_value * gain + offset
+        self.unit_conversions: Dict[int, Dict[str, Tuple[float, float]]] = {}
         self.name_records: Dict[str, Dict] = {}     # Keyword -> Info Dict
         
         # --- Time & Grid Index ---
@@ -97,6 +100,7 @@ class SR3Indexer:
             self._load_metadata()
             self._load_components()
             self._load_units()
+            self._load_unit_conversions()
             self._load_name_records()
             self._load_time_index()
             self._index_spatial_properties(list_props_ts=list_props_ts)
@@ -296,6 +300,43 @@ class SR3Indexer:
         except Exception as e:
             logger.warning(f"Failed to load UnitsTable: {e}")
 
+    def _load_unit_conversions(self):
+        """Load /General/UnitConversionTable.
+
+        Each row maps a (Dimensionality, Unit Name) pair to a (Gain, Offset)
+        such that ``canonical_value = stored_value * Gain + Offset``. The
+        canonical for each dimension is the row whose Gain=1 and Offset=0.
+
+        We use this table both to convert from the stored Output unit to the
+        Internal unit (for ``to_unit='internal'``) and to convert to an
+        arbitrary user-supplied unit name (for ``to_unit='psi'`` etc.).
+        """
+        if 'General/UnitConversionTable' not in self.handle:
+            return
+        try:
+            uct = self.handle['General/UnitConversionTable'][()]
+            names = uct.dtype.names
+            if not names:
+                return
+            col_dim = self._pick_dtype_field(names, ["Dimensionality"])
+            col_name = self._pick_dtype_field(names, ["Unit Name", "Unit"])
+            col_gain = self._pick_dtype_field(names, ["Gain"])
+            col_offset = self._pick_dtype_field(names, ["Offset"])
+            if not all((col_dim, col_name, col_gain, col_offset)):
+                logger.warning("UnitConversionTable: missing expected columns")
+                return
+            for row in uct:
+                try:
+                    dim = int(row[col_dim])
+                    uname = self._decode_bytes(row[col_name])
+                    gain = float(row[col_gain])
+                    offset = float(row[col_offset])
+                    self.unit_conversions.setdefault(dim, {})[uname] = (gain, offset)
+                except Exception as ex:
+                    logger.warning(f"Error parsing UCT row: {ex}")
+        except Exception as e:
+            logger.warning(f"Failed to load UnitConversionTable: {e}")
+
     def _load_name_records(self):
         """Load /General/NameRecordTable."""
         if 'General/NameRecordTable' not in self.handle:
@@ -319,51 +360,192 @@ class SR3Indexer:
             for row in nt:
                 key = self._decode_bytes(row[col_key])
                 name = self._decode_bytes(row[col_name]) if col_name else key
-                
-                # Parse Unit
-                unit_str = ""
-                if col_dim:
-                    dim_key = self._decode_bytes(row[col_dim])
-                    unit_str = self._parse_unit_key(dim_key)
-                
+
+                # Parse the Dimensionality token (e.g. "3|" or "11|-13|") and
+                # compose unit labels for BOTH Output (default — the stored
+                # bytes) and Internal (the simulator's units).
+                dim_key = self._decode_bytes(row[col_dim]) if col_dim else ""
+                unit_out = self._parse_unit_key(dim_key, which='output')
+                unit_int = self._parse_unit_key(dim_key, which='internal')
+
                 # Parse SizeRef
                 size_ref = ""
                 if col_size:
                     size_ref = self._decode_bytes(row[col_size])
-                
+
                 self.name_records[key] = {
                     'name': name,
-                    'unit': unit_str,
-                    'size_ref': size_ref
+                    'unit': unit_out,            # default label: Output Unit
+                    'unit_internal': unit_int,   # CMG simulator's Internal Unit
+                    'dim_token': dim_key,        # raw token, needed for conversion
+                    'size_ref': size_ref,
                 }
         except Exception as e:
             logger.warning(f"Failed to load NameRecordTable: {e}")
 
-    def _parse_unit_key(self, key: str) -> str:
-        """Parse '11|-13|' into 'm3/m3'."""
-        if not key: return ""
+    def _parse_unit_key(self, key: str, which: str = 'output') -> str:
+        """Parse a Dimensionality token like '11|-13|' into a unit string.
+
+        ``which='output'`` (default) composes the label from each dimension's
+        ``UnitsTable.Output Unit`` — i.e. what the stored bytes are in.
+        ``which='internal'`` composes from ``UnitsTable.Internal Unit`` — the
+        simulator's solver units.
+        """
+        if not key:
+            return ""
+        which_field = 'internal_unit' if which == 'internal' else 'output_unit'
         parts = key.strip('|').split('|')
         nums, dens = [], []
         for p in parts:
-            if not p: continue
+            if not p:
+                continue
             try:
                 uid = int(p)
                 unit_obj = self.units.get(abs(uid))
-                
                 if isinstance(unit_obj, dict):
-                   u = unit_obj.get('internal_unit') or "?"
+                    u = unit_obj.get(which_field) or "?"
                 else:
-                   u = str(unit_obj) if unit_obj else "?"
-
-                if uid > 0: nums.append(u)
-                else: dens.append(u)
-            except Exception: pass
-            
+                    u = str(unit_obj) if unit_obj else "?"
+                if uid > 0:
+                    nums.append(u)
+                else:
+                    dens.append(u)
+            except Exception:
+                pass
         n_str = "*".join(nums) if nums else "1"
         d_str = "*".join(dens) if dens else ""
-        
-        if not dens: return n_str if nums else ""
+        if not dens:
+            return n_str if nums else ""
         return f"{n_str}/{d_str}"
+
+    # --- Public unit helpers --------------------------------------------------
+
+    def unit_of(self, keyword: str, to_unit: str = "output") -> str:
+        """Return the unit string for ``keyword`` under the requested policy.
+
+        Args:
+            keyword: A property keyword (e.g. ``'PRES'``) or a TimeSeries
+                variable keyword (e.g. ``'BHP'``, ``'OILRATSC'``).
+            to_unit:
+                - ``'output'`` (default): the unit the stored bytes are in
+                  (``UnitsTable.Output Unit``).
+                - ``'internal'``: the CMG simulator's internal units
+                  (``UnitsTable.Internal Unit``).
+                - any specific unit name (e.g. ``'psi'``, ``'MPa'``, ``'md'``):
+                  only valid for single positive-dimension keywords.
+
+        Returns:
+            The unit string, ``""`` if dimensionless or unknown keyword.
+        """
+        rec = self.name_records.get(keyword)
+        if not rec:
+            return ""
+        token = (rec.get('dim_token') or "").strip('|')
+        if not token:
+            return ""
+        parsed = self._parse_dim_tokens(token)
+        if not parsed:
+            return ""
+        if to_unit == "output":
+            return self._parse_unit_key(rec['dim_token'], which='output')
+        if to_unit == "internal":
+            return self._parse_unit_key(rec['dim_token'], which='internal')
+        # Specific unit name: only valid for single positive-dimension keywords
+        if len(parsed) == 1 and parsed[0][1] > 0:
+            return to_unit
+        raise ValueError(
+            f"to_unit={to_unit!r} only valid for single positive-dimension keywords"
+        )
+
+    def convert(self, keyword: str, values: Any, to_unit: str = "output") -> np.ndarray:
+        """Convert ``values`` for ``keyword`` from the file's Output unit to ``to_unit``.
+
+        - ``to_unit='output'`` (default) — no-op (values already in Output unit).
+        - ``to_unit='internal'`` — per-token UCT conversion. Compound (multi-token)
+          dimensions support gain-only conversion; a per-token non-zero offset
+          (e.g. Temperature appearing in a compound) raises ``ValueError``.
+        - ``to_unit='psi'`` / ``'MPa'`` / ``'md'`` / ``...`` — single positive-dimension
+          keywords only; uses UCT to apply ``gain`` + ``offset``.
+
+        Returns a NumPy array for array input, or a NumPy scalar for scalar input.
+        """
+        arr = np.asarray(values, dtype=np.float64)
+        if to_unit == "output":
+            return arr
+        rec = self.name_records.get(keyword)
+        if not rec:
+            return arr
+        token = (rec.get('dim_token') or "").strip('|')
+        if not token:
+            return arr  # dimensionless
+        parsed = self._parse_dim_tokens(token)
+        if not parsed:
+            return arr
+
+        result = arr.copy()
+
+        if to_unit == "internal":
+            for idx, sign in parsed:
+                stored = (self.units.get(idx) or {}).get('output_unit') or ""
+                target = (self.units.get(idx) or {}).get('internal_unit') or ""
+                if not stored or not target or stored == target:
+                    continue
+                rows = self.unit_conversions.get(idx)
+                if not rows or stored not in rows or target not in rows:
+                    logger.warning(
+                        f"convert({keyword!r}, to_unit='internal'): no UCT entry for "
+                        f"dim={idx} (stored={stored!r}, target={target!r}); leaving values unchanged"
+                    )
+                    return arr
+                g_in, o_in = rows[stored]
+                g_t, o_t = rows[target]
+                if len(parsed) == 1:
+                    # Single-dimension: full formula (handles Temperature offsets)
+                    if sign > 0:
+                        result = (result * g_in + o_in - o_t) / g_t
+                    else:
+                        # Single-token denominator quantity (unusual)
+                        result = g_t / (result * g_in + o_in - o_t)
+                else:
+                    # Compound: per-token offsets must be zero to compose meaningfully
+                    if o_in != 0.0 or o_t != 0.0:
+                        raise ValueError(
+                            f"convert({keyword!r}): cannot apply per-token offset "
+                            f"conversion for dim={idx} inside a compound quantity"
+                        )
+                    ratio = g_in / g_t
+                    result = result * ratio if sign > 0 else result / ratio
+            return result
+
+        # Specific unit name: only valid for single positive-dim keywords
+        if len(parsed) != 1 or parsed[0][1] < 0:
+            raise ValueError(
+                f"to_unit={to_unit!r} only valid for single positive-dimension keywords"
+            )
+        idx, _ = parsed[0]
+        stored = (self.units.get(idx) or {}).get('output_unit') or ""
+        rows = self.unit_conversions.get(idx)
+        if not rows or stored not in rows or to_unit not in rows:
+            raise ValueError(
+                f"convert({keyword!r}, to_unit={to_unit!r}): UCT does not know how to "
+                f"convert dim={idx} from {stored!r} to {to_unit!r}"
+            )
+        g_in, o_in = rows[stored]
+        g_t, o_t = rows[to_unit]
+        return (result * g_in + o_in - o_t) / g_t
+
+    def _parse_dim_tokens(self, token: str) -> List[Tuple[int, int]]:
+        """Parse '11|-13|' into [(11, +1), (13, -1)]."""
+        out: List[Tuple[int, int]] = []
+        for t in token.strip('|').split('|'):
+            if not t:
+                continue
+            try:
+                i = int(t)
+                out.append((abs(i), 1 if i > 0 else -1))
+            except ValueError:
+                continue
+        return out
 
     def _load_time_index(self):
         """Load /General/MasterTimeTable."""
@@ -622,13 +804,19 @@ class SR3Indexer:
                             origins: Optional[List[str]] = None,
                             variables: Optional[List[str]] = None,
                             timesteps: Optional[List[int]] = None,
-                            drop_empty_origins: bool = True) -> Any:
+                            drop_empty_origins: bool = True,
+                            to_unit: str = 'output') -> Any:
         """
         Fetch TimeSeries data as a long-form DataFrame.
 
         SR3 stores TimeSeries/Data as (time, variable, origin).
         Columns:
         Entity, Origin, Variable, TimeIndex, Time, Date, Value, Unit, OriginIndex, VariableIndex.
+
+        ``to_unit`` controls how ``Value`` (and ``Unit``) are returned:
+          - ``'output'`` (default) — values as stored, labelled by Output Unit.
+          - ``'internal'`` — values converted to CMG's Internal Unit, labelled accordingly.
+          - any specific unit name (e.g. ``'psi'``) — single-dimension variables only.
         """
         if not HAS_PANDAS:
             raise ImportError("Pandas is required for get_timeseries_data")
@@ -666,6 +854,25 @@ class SR3Indexer:
         if drop_empty_origins:
             origin_indices = [i for i in origin_indices if i < len(all_origins) and all_origins[i] != ""]
 
+        # If a non-default unit policy is requested, convert each used variable's
+        # slice up-front (vectorized) and remember the resolved unit label.
+        var_units: Dict[int, str] = {}
+        if to_unit == 'output':
+            for v_idx in set(variable_indices):
+                var_units[v_idx] = self.unit_of(all_variables[v_idx], 'output')
+            converted = data
+        else:
+            converted = data.astype(np.float64, copy=True)
+            for v_idx in set(variable_indices):
+                var_name = all_variables[v_idx]
+                try:
+                    converted[:, v_idx, :] = self.convert(var_name, data[:, v_idx, :], to_unit)
+                    var_units[v_idx] = self.unit_of(var_name, to_unit)
+                except ValueError as exc:
+                    logger.warning(f"get_timeseries_data: {exc}; leaving {var_name!r} in output units")
+                    converted[:, v_idx, :] = data[:, v_idx, :]
+                    var_units[v_idx] = self.unit_of(var_name, 'output')
+
         records = []
         for t_pos in timestep_indices:
             ts = int(all_timesteps[t_pos])
@@ -683,8 +890,8 @@ class SR3Indexer:
                         'TimeIndex': ts,
                         'Time': time_value,
                         'Date': date_value,
-                        'Value': data[t_pos, var_idx, origin_idx],
-                        'Unit': self._get_timeseries_var_unit(var_name),
+                        'Value': converted[t_pos, var_idx, origin_idx],
+                        'Unit': var_units[var_idx],
                         'OriginIndex': origin_idx,
                         'VariableIndex': var_idx,
                     })
@@ -719,18 +926,23 @@ class SR3Indexer:
             raise ValueError(f"Unknown TimeSeries timestep(s): {missing}")
         return [ts_to_index[int(ts)] for ts in selected]
 
-    def get_well_data(self, 
-                      well_names: Optional[List[str]] = None, 
-                      variable_names: Optional[List[str]] = None, 
-                      timesteps: Optional[List[int]] = None) -> Any:
+    def get_well_data(self,
+                      well_names: Optional[List[str]] = None,
+                      variable_names: Optional[List[str]] = None,
+                      timesteps: Optional[List[int]] = None,
+                      to_unit: str = 'output') -> Any:
         """
         Fetch well data as a Pandas DataFrame.
+
+        ``to_unit`` is forwarded to :meth:`get_timeseries_data` — see its
+        docstring for the accepted values.
         """
         df = self.get_timeseries_data(
             entity='WELLS',
             origins=well_names,
             variables=variable_names,
             timesteps=timesteps,
+            to_unit=to_unit,
         )
         if df.empty:
             return df
@@ -743,17 +955,23 @@ class SR3Indexer:
         ]
         return df[columns]
 
-    def _get_timeseries_var_unit(self, var_name: str) -> str:
+    def _get_timeseries_var_unit(self, var_name: str, to_unit: str = 'output') -> str:
         """Resolve the unit for a TimeSeries/well variable from NameRecordTable."""
-        record = self.name_records.get(var_name)
-        return record['unit'] if record else ""
+        try:
+            return self.unit_of(var_name, to_unit=to_unit)
+        except ValueError:
+            record = self.name_records.get(var_name)
+            return record.get('unit', '') if record else ''
 
     # --- Info Resolution ---
 
-    def get_property_info(self, name: str) -> Dict[str, str]:
+    def get_property_info(self, name: str, to_unit: str = 'output') -> Dict[str, str]:
         """
         Resolve display name and unit for a property.
         e.g. 'SOLCONC3(1)' -> 'Solid Conc (CH4-HyD)'
+
+        ``to_unit`` controls which unit string is returned (default ``'output'``
+        — the unit the stored bytes are in). See :meth:`unit_of` for details.
         """
         # 1. Parse input
         match = re.match(r"([A-Za-z0-9_]+)(?:\((\d+)\))?", name)
@@ -765,15 +983,22 @@ class SR3Indexer:
         idx = int(idx_str) if idx_str else None
         
         # 2. Find Record
+        record_key = base_key
         record = self.name_records.get(base_key)
         if not record:
-            record = self.name_records.get(base_key + "$C")
-            
+            record_key = base_key + "$C"
+            record = self.name_records.get(record_key)
+
         if not record:
             return {'display_name': name, 'unit': '', 'original_key': name, 'component': ''}
-            
+
         template = record['name']
-        unit = record['unit']
+        # Resolve unit under the requested policy (handles 'output' / 'internal' /
+        # any specific unit name); falls back to the stored Output Unit label.
+        try:
+            unit = self.unit_of(record_key, to_unit=to_unit)
+        except ValueError:
+            unit = record.get('unit', '')
         size_ref = record['size_ref']
         
         # 3. Resolve Component

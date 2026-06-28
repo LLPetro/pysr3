@@ -34,7 +34,8 @@ class DataMapper:
                  keywords: Union[str, List[str]],
                  times: Union[int, List[int]],
                  aggregate: bool = False,
-                 agg_method: str = 'mean') -> pd.DataFrame:
+                 agg_method: str = 'mean',
+                 to_unit: str = 'output') -> pd.DataFrame:
         """Map one or more properties and return a fully labelled DataFrame.
 
         Args:
@@ -50,6 +51,14 @@ class DataMapper:
             agg_method: Aggregation method: ``'mean'``, ``'sum'``, ``'min'``,
                 ``'max'``, or ``'volume_mean'`` (bulk-volume-weighted mean using
                 the ``MODBVOL`` property).
+            to_unit: Unit policy applied to every ``(keyword, time)`` column.
+                - ``'output'`` (default): values stored as-is (Output Unit).
+                - ``'internal'``: values converted to CMG's Internal Unit.
+                - any specific unit name (e.g. ``'psi'``, ``'MPa'``, ``'md'``):
+                  only valid when *every* requested keyword is a single positive-
+                  dimension quantity that the SR3's ``UnitConversionTable`` knows
+                  how to convert to that name.
+                The matching ``Unit`` level of each column reflects this choice.
 
         Returns:
             A DataFrame with one float column per ``(keyword, time)`` and one
@@ -62,7 +71,7 @@ class DataMapper:
         if isinstance(times, int):
             times = [times]
 
-        # 2. Resolve the time unit
+        # 2. Resolve the time unit (MasterTimeTable is in days; left as-is)
         time_unit = 'day'
         if hasattr(self.indexer, 'units'):
             for u in self.indexer.units.values():
@@ -81,11 +90,15 @@ class DataMapper:
                 time_value = float(time_step)
 
             for kw in keywords:
-                # Resolve property metadata
+                # Resolve property metadata under the requested unit policy
                 try:
-                    prop_info = self.indexer.get_property_info(kw)
-                except AttributeError:
-                    prop_info = {}
+                    prop_info = self.indexer.get_property_info(kw, to_unit=to_unit)
+                except (AttributeError, TypeError):
+                    # Older indexers don't accept to_unit; fall back to default
+                    try:
+                        prop_info = self.indexer.get_property_info(kw)
+                    except AttributeError:
+                        prop_info = {}
 
                 long_name = prop_info.get('display_name', kw)
                 unit = prop_info.get('unit', '')
@@ -98,6 +111,21 @@ class DataMapper:
                 except Exception as e:
                     logger.error(f"Failed to map property '{kw}' at step {time_step}: {e}")
                     mapped_values = np.full(grid.n_cells, np.nan)
+
+                # Apply unit conversion if requested (NaNs propagate through)
+                if to_unit != 'output' and hasattr(self.indexer, 'convert'):
+                    try:
+                        mapped_values = self.indexer.convert(kw, mapped_values, to_unit)
+                    except ValueError as exc:
+                        logger.warning(
+                            f"map_prop({kw!r}, to_unit={to_unit!r}): {exc}; "
+                            f"leaving values in output units"
+                        )
+                        # Restore label so it matches the unconverted values
+                        try:
+                            unit = self.indexer.unit_of(kw, 'output')
+                        except Exception:
+                            pass
 
                 # Build the column key
                 col_key = (kw, long_name, unit, time_value, time_step, time_unit)

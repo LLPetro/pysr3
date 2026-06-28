@@ -149,6 +149,7 @@ nav:
           - Coordinate system: user-guide/concepts/coordinate-system.md
           - DFN vs LGR: user-guide/concepts/dfn-vs-lgr.md
           - Wells & time series: user-guide/concepts/timeseries.md
+          - Units & conversion: user-guide/concepts/units.md
       - Tutorials:
           - user-guide/tutorials/index.md
           - First SR3 case: user-guide/tutorials/first-sr3-case.md
