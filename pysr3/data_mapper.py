@@ -1,10 +1,14 @@
-import numpy as np
-import pyvista as pv
-import pandas as pd
-from typing import Union, List, Dict, Optional
+from __future__ import annotations
+
 import logging
-from .sr3_indexer import SR3Indexer
+from typing import Dict, List, Optional, Union
+
+import numpy as np
+import pandas as pd
+import pyvista as pv
+
 from .grid.geometry import infer_levels, refined_parent_ids
+from .sr3_indexer import SR3Indexer
 
 logger = logging.getLogger(__name__)
 
@@ -49,8 +53,10 @@ class DataMapper:
                 ``GridBuilder.build(..., keep_refined_parents=True)`` — the
                 default — so the parents are present).
             agg_method: Aggregation method: ``'mean'``, ``'sum'``, ``'min'``,
-                ``'max'``, or ``'volume_mean'`` (bulk-volume-weighted mean using
-                the ``MODBVOL`` property).
+                ``'max'``, ``'volume_mean'`` (bulk-volume-weighted mean using
+                ``MODBVOL``), or ``'pore_volume_mean'`` (pore-volume-weighted
+                mean using ``BLOCKPVOL`` — the right choice for fluid-property
+                aggregation such as STOIIP, saturations and pressure averages).
             to_unit: Unit policy applied to every ``(keyword, time)`` column.
                 - ``'output'`` (default): values stored as-is (Output Unit).
                 - ``'internal'``: values converted to CMG's Internal Unit.
@@ -209,6 +215,7 @@ class DataMapper:
         icstpb = geo_info['icstpb']
         icstps = geo_info['icstps']
         igntnc = geo_info['igntnc']
+        icstcg = geo_info.get('icstcg')
         level = geo_info['level']
         max_level = geo_info['max_level']
         total_cells = len(icstpb)
@@ -231,7 +238,7 @@ class DataMapper:
 
         # 4. NaN-init refined-parent slots so their (possibly stale) own-slot
         #    values don't survive aggregation
-        rp = refined_parent_ids(icstpb, igntnc)
+        rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
         if rp.size:
             full_values[rp] = np.nan
 
@@ -249,13 +256,10 @@ class DataMapper:
                 f"or include_inactive=True."
             )
 
-        # 6. Resolve weights for volume_mean (one-shot, MODBVOL-based)
-        weights = None
-        if agg_method == 'volume_mean':
-            weights = self._volume_weights(icstps, time_step, total_cells)
-            if weights is None:
-                logger.warning("agg_method='volume_mean' requires MODBVOL; falling back to 'mean'.")
-                agg_method = 'mean'
+        # 6. Resolve weights for volume_mean / pore_volume_mean. MODBVOL lives
+        #    at the step root, BLOCKPVOL at /SpatialProperties/<step>/GRID/;
+        #    _weights_for_method dispatches and resolves the nearest grid step.
+        weights, agg_method = self._weights_for_method(agg_method, icstps, time_step, total_cells)
 
         # 7. Perform bottom-up LGR aggregation
         if max_level > 0:
@@ -269,38 +273,84 @@ class DataMapper:
 
         return full_values[global_ids]
 
-    def _volume_weights(self, icstps: np.ndarray, time_step: int,
-                        total_cells: int) -> Optional[np.ndarray]:
-        """Return per-cell bulk volume (length ``total_cells``) from ``MODBVOL``.
+    # Map from weighted-aggregation method name to the source-array keyword.
+    # MODBVOL lives at /SpatialProperties/<step>/MODBVOL (a property);
+    # BLOCKPVOL lives at /SpatialProperties/<step>/GRID/BLOCKPVOL (geometry).
+    _WEIGHT_SOURCES = {
+        'volume_mean': ('MODBVOL', 'property'),
+        'pore_volume_mean': ('BLOCKPVOL', 'grid_array'),
+    }
 
-        ``MODBVOL`` is a static property — written only at the grid time step —
-        so we fetch it once at the nearest grid step regardless of the caller's
-        time index, and propagate per cell via ``ICSTPS - 1``.
+    def _weights_for_method(self, agg_method: str, icstps: np.ndarray,
+                            time_step: int, total_cells: int):
+        """Resolve per-cell weights for a weighted aggregation method.
+
+        Returns ``(weights, effective_method)``. For 'volume_mean' /
+        'pore_volume_mean' this fetches the appropriate static volume array
+        (MODBVOL or BLOCKPVOL respectively) and broadcasts it per cell via
+        ``ICSTPS - 1``. If the weight source is missing, logs a warning and
+        downgrades to 'mean' (returns ``(None, 'mean')``).
+
+        For any other method this is a no-op: returns ``(None, agg_method)``.
         """
+        if agg_method not in self._WEIGHT_SOURCES:
+            return None, agg_method
+        keyword, layout = self._WEIGHT_SOURCES[agg_method]
         try:
             grid_ts = self.indexer.get_nearest_grid_ts(time_step)
         except (AttributeError, KeyError):
             grid_ts = time_step
-        bv = self.indexer.get_property_data("MODBVOL", grid_ts)
+        # Fetch from the layout-appropriate accessor:
+        #   - 'grid_array': prefer SR3Indexer.get_grid_array (single-array read);
+        #     fall back to get_grid_data().get(keyword) for older or minimal
+        #     mock indexers that only implement the bulk accessor.
+        #   - 'property': SR3Indexer.get_property_data already has a /GRID/
+        #     fallback baked in, so no second-source path is needed here.
+        bv = None
+        if layout == 'grid_array':
+            getter = getattr(self.indexer, 'get_grid_array', None)
+            if getter is not None:
+                bv = getter(keyword, grid_ts)
+            if bv is None:
+                grid_data_getter = getattr(self.indexer, 'get_grid_data', None)
+                if grid_data_getter is not None:
+                    bv = (grid_data_getter(grid_ts) or {}).get(keyword)
+        else:  # 'property'
+            bv = self.indexer.get_property_data(keyword, grid_ts)
         if bv is None:
-            return None
+            logger.warning(
+                f"agg_method={agg_method!r} requires {keyword}; falling back to 'mean'."
+            )
+            return None, 'mean'
         weights = np.full(total_cells, np.nan, dtype=np.float64)
         valid = (icstps > 0) & ((icstps - 1) < len(bv))
         weights[valid] = bv[icstps[valid] - 1]
-        return weights
+        return weights, agg_method
 
     def _get_geometry_info(self, time_step: int) -> Dict:
-        """Fetch and cache geometry info (ICSTPB, ICSTPS, IGNTNC, inferred levels)."""
-        if time_step in self._geo_cache:
-            return self._geo_cache[time_step]
+        """Fetch and cache geometry info (ICSTPB, ICSTPS, IGNTNC, ICSTCG, inferred levels).
 
-        # Find the nearest GRID time step
+        Cache contract: the canonical key is the nearest grid time step
+        (``get_nearest_grid_ts(time_step)``); a ``time_step != grid_ts`` request
+        also gets aliased to point at the same info dict, so subsequent calls at
+        either step are O(1). Without this two-level aliasing, iterating
+        ``map_prop`` across results time steps that all share one geometry step
+        would re-fetch from HDF5 on every call.
+        """
+        cached = self._geo_cache.get(time_step)
+        if cached is not None:
+            return cached
+
         grid_ts = self.indexer.get_nearest_grid_ts(time_step)
-        if grid_ts != time_step:
-            logger.debug(f"Geometry for step {time_step} not found. Using GRID from step {grid_ts}.")
-            if grid_ts in self._geo_cache:
-                self._geo_cache[time_step] = self._geo_cache[grid_ts]
-                return self._geo_cache[grid_ts]
+        cached = self._geo_cache.get(grid_ts)
+        if cached is not None:
+            # Alias non-grid time_step to point at the canonical grid_ts entry
+            if grid_ts != time_step:
+                logger.debug(
+                    f"Geometry for step {time_step} not found; using GRID from step {grid_ts}."
+                )
+                self._geo_cache[time_step] = cached
+            return cached
 
         # Fetch raw grid arrays
         data = self.indexer.get_grid_data(grid_ts)
@@ -311,6 +361,10 @@ class DataMapper:
         icstpb = data['ICSTPB']
         icstps = data['ICSTPS']
         igntnc = data['IGNTNC']
+        # ICSTCG ("Complete storage to child grid") is the inverse of ICSTPB:
+        # nonzero exactly on refined-parent cells. Optional — older SR3 files
+        # may not write it; refined_parent_ids falls back to the ICSTPB scan.
+        icstcg = data.get('ICSTCG')
 
         # Infer levels (shared implementation with GridBuilder)
         level = infer_levels(icstpb, igntnc)
@@ -320,11 +374,15 @@ class DataMapper:
             'icstpb': icstpb,
             'icstps': icstps,
             'igntnc': igntnc,
+            'icstcg': icstcg,
             'level': level,
-            'max_level': max_level
+            'max_level': max_level,
         }
 
-        self._geo_cache[time_step] = info
+        # Canonical cache under grid_ts; alias to the caller's time_step if different.
+        self._geo_cache[grid_ts] = info
+        if time_step != grid_ts:
+            self._geo_cache[time_step] = info
         return info
 
     def _aggregate_values(self,
@@ -332,13 +390,15 @@ class DataMapper:
                           icstpb: np.ndarray,
                           levels: np.ndarray,
                           max_level: int,
-                          method: str = 'mean',
+                          method: str,
                           weights: Optional[np.ndarray] = None) -> np.ndarray:
         """Perform bottom-up LGR aggregation.
 
         Working from the deepest level upward, aggregate child-cell values into
-        their parent cells using ``method``. For ``method='volume_mean'`` the
-        caller must supply ``weights`` as a per-cell array (e.g. ``MODBVOL``).
+        their parent cells using ``method``. For the weighted methods
+        ``'volume_mean'`` and ``'pore_volume_mean'`` the caller must supply
+        ``weights`` as a per-cell array (``MODBVOL`` or ``BLOCKPVOL``
+        respectively); :meth:`_weights_for_method` does this dispatch.
         """
         N = len(full_values)
 
@@ -383,9 +443,11 @@ class DataMapper:
                 np.maximum.at(aggs, parents, valid_vals)
                 update_mask = (aggs != -np.inf)
 
-            elif method == 'volume_mean':
+            elif method in ('volume_mean', 'pore_volume_mean'):
                 if weights is None:
-                    logger.warning("volume_mean requires weights; falling back to 'mean'.")
+                    logger.warning(
+                        f"agg_method={method!r} requires weights; falling back to 'mean'."
+                    )
                     return self._aggregate_values(full_values, icstpb, levels, max_level, 'mean')
                 w_child = weights[valid_children]
                 ok = np.isfinite(w_child) & (w_child > 0)

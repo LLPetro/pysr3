@@ -18,6 +18,7 @@ import pyvista as pv
 
 from .grid import dfn
 from .grid.base import available_grid_types, get_strategy
+from .grid.type_detect import IGNTGT_CODE_MAP, detect_grid_type
 
 # Import strategy modules for their registration side effects.
 from .grid import cartesian as _cartesian  # noqa: F401
@@ -48,7 +49,10 @@ class GridBuilder:
 
         Args:
             grid_type: One of :func:`pysr3.grid.available_grid_types`
-                (``"Cartesian"``, ``"CornerPoint"``, ``"Radial"``). Required.
+                (``"Cartesian"``, ``"CornerPoint"``, ``"Radial"``). Default
+                ``None`` triggers auto-detection from
+                ``/SpatialProperties/<step>/GRID/IGNTGT[0]``; pass explicitly
+                to override the detection (a warning is logged on mismatch).
             grid_mode:
                 - ``"mixed"`` (default): unrefined level-0 blocks + all LGR leaves.
                 - ``"refined"``: only LGR cells (level > 0).
@@ -67,18 +71,41 @@ class GridBuilder:
         Returns:
             ``pv.UnstructuredGrid`` with ``PropGlobalID``, ``GlobalCellID``,
             ``Level``, ``I/J/K`` and ``ParentI/J/K`` cell-data arrays.
+
+        Raises:
+            ValueError: when ``grid_type`` is ``None`` and the file's IGNTGT is
+                missing or carries an unknown code (auto-detection failed); pass
+                ``grid_type`` explicitly to recover.
         """
-        if not grid_type:
-            raise ValueError(
-                f"grid_type must be specified, one of {available_grid_types()}"
+        # Fetch the grid dict once and reuse it for both auto-detection and
+        # strategy dispatch (single HDF5 read).
+        data = self.indexer.get_grid_data(self.indexer.get_nearest_grid_ts(time_step))
+        detected = detect_grid_type(data)
+
+        if grid_type is None:
+            if detected is None:
+                igntgt_raw = data.get("IGNTGT")
+                igntgt_repr = "absent" if igntgt_raw is None else repr(list(igntgt_raw)[:8])
+                file_path = getattr(self.indexer, "file_path", "<unknown file>")
+                raise ValueError(
+                    f"grid_type could not be auto-detected for {file_path!r}: "
+                    f"IGNTGT={igntgt_repr}. Pass grid_type=... explicitly. "
+                    f"Known IGNTGT codes: {sorted(IGNTGT_CODE_MAP)}; "
+                    f"available strategies: {available_grid_types()}."
+                )
+            grid_type = detected
+            logger.info(f"Auto-detected grid_type={grid_type!r} from IGNTGT")
+        elif detected is not None and detected != grid_type:
+            file_path = getattr(self.indexer, "file_path", "<unknown file>")
+            logger.warning(
+                f"Supplied grid_type={grid_type!r} contradicts IGNTGT[0] "
+                f"({detected!r}) in {file_path!r}; honoring the user value"
             )
 
         logger.info(f"Building grid: type={grid_type}, mode={grid_mode}, step={time_step}")
         strategy = get_strategy(grid_type, self.indexer)
-        data = self.indexer.get_grid_data(time_step)
         grid = strategy.build(
             data=data,
-            time_step=time_step,
             grid_mode=grid_mode,
             include_inactive=include_inactive,
             keep_refined_parents=keep_refined_parents,

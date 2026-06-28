@@ -55,10 +55,12 @@ flowchart LR
 
 | 数组 | 作用 |
 |---|---|
-| `IGNTID`、`IGNTJD`、`IGNTKD` | 各线段的 NI、NJ、NK 维度 |
-| `IGNTNC` | 划定线段边界的累积单元计数偏移量 |
+| `IGNTID`、`IGNTJD`、`IGNTKD` | 各线段的 NI、NJ、NK 维度（NRT: "Grid number to no. of I/J/K direction blocks"） |
+| `IGNTNC` | 划定线段边界的累积单元计数偏移量。NRT 称为 "Grid number to last block CS index" —— `IGNTNC[g]` 是网格 `g-1` 的 CS 末尾下标（开区间），故 `diff(IGNTNC)` 给出每个子网格的单元数 |
+| `IGNTGT` | 每个子网格的类型码（`1=Cartesian`、`2=Radial`、`3=LGR 子网格`、`12=CornerPoint`）。`IGNTGT[0]` 是根网格类型 —— `GridBuilder` 用它自动检测 |
 | `BLOCKSIZE` | 每个单元的（Δx, Δy, Δz）；径向网格为（Δr, 弧长, Δz） |
 | `BLOCKDEPTH` | 每个单元的中心深度（正值向下） |
+| `BLOCKPVOL` | 每个单元的孔隙体积（NRT: "Block pore volume", dim 5 = Property Volume；容纳流体的岩石体积 = bulk × 孔隙度 × NTG） |
 | `WELLRADIUS` | 每个径向线段的内径 |
 | `KDIR` | 层方向（`UP`/`DOWN`） |
 
@@ -66,9 +68,11 @@ flowchart LR
 
 | 数组 | 作用 |
 |---|---|
-| `ICSTPS` | 几何单元 → 属性槽（`PropGlobalID = ICSTPS-1`） |
-| `ICSTPB` | 父指针（1 为基），用于推断 `Level` 并聚合 LGR |
-| `IPSTAC` | 每个属性槽的活跃标志（空层宿主单元可为非活跃） |
+| `ICSTPS` | 几何单元 → 属性槽（`PropGlobalID = ICSTPS-1`）；NRT: "Complete storage to packed storage" |
+| `ICSTPB` | 父指针（1 为基），用于推断 `Level` 并聚合 LGR；NRT: "Complete storage to parent block" |
+| `ICSTCG` | `ICSTPB` 的反向：每单元的子网格指针（1 为基），仅在被细化的父单元上非零；NRT: "Complete storage to child grid" |
+| `ICSTGN` | 每单元的网格编号（1 为基）；NRT: "Complete storage to grid number" —— 等价于 `1 + np.searchsorted(IGNTNC[1:], np.arange(n), side='right')` |
+| `IPSTAC` | 每个属性槽的活跃标志（空层宿主单元可为非活跃）；NRT: "Packed storage to active status" |
 
 ### 角点编码
 

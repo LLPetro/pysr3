@@ -13,10 +13,14 @@ thin facade that dispatches to these strategies.
 """
 
 from .base import GridStrategy, register_strategy, get_strategy, available_grid_types
+from .type_detect import IGNTGT_CODE_MAP, IGNTGT_INHERIT_CODE, detect_grid_type
 
 __all__ = [
     "GridStrategy",
     "register_strategy",
     "get_strategy",
     "available_grid_types",
+    "detect_grid_type",
+    "IGNTGT_CODE_MAP",
+    "IGNTGT_INHERIT_CODE",
 ]

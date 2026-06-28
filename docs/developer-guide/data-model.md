@@ -62,10 +62,12 @@ present depend on the grid type):
 
 | Array | Role |
 |---|---|
-| `IGNTID`, `IGNTJD`, `IGNTKD` | per-segment NI, NJ, NK dimensions |
-| `IGNTNC` | cumulative cell-count offsets that delimit segments |
+| `IGNTID`, `IGNTJD`, `IGNTKD` | per-segment NI, NJ, NK dimensions (NRT: "Grid number to no. of I/J/K direction blocks") |
+| `IGNTNC` | cumulative cell-count offsets that delimit segments. NRT calls it "Grid number to last block CS index" — `IGNTNC[g]` is the exclusive end CS index of grid `g-1`, so `diff(IGNTNC)` gives per-grid cell counts |
+| `IGNTGT` | per-grid type code (`1=Cartesian`, `2=Radial`, `3=LGR sub-grid`, `12=CornerPoint`). `IGNTGT[0]` is the root grid's type — used by `GridBuilder` to auto-detect |
 | `BLOCKSIZE` | per-cell (Δx, Δy, Δz); for radial, (Δr, arc length, Δz) |
 | `BLOCKDEPTH` | per-cell centre depth (positive downward) |
+| `BLOCKPVOL` | per-cell pore volume (NRT: "Block pore volume", dim 5 = Property Volume; the rock volume that holds fluids — bulk × porosity × NTG) |
 | `WELLRADIUS` | inner radius per radial segment |
 | `KDIR` | layer direction (`UP`/`DOWN`) |
 
@@ -73,9 +75,11 @@ present depend on the grid type):
 
 | Array | Role |
 |---|---|
-| `ICSTPS` | geometry cell → property slot (`PropGlobalID = ICSTPS-1`) |
-| `ICSTPB` | parent pointer (1-based) used to infer `Level` and aggregate LGR |
-| `IPSTAC` | active flag per property slot (a null-layer host can be inactive) |
+| `ICSTPS` | geometry cell → property slot (`PropGlobalID = ICSTPS-1`); NRT: "Complete storage to packed storage" |
+| `ICSTPB` | parent pointer (1-based) used to infer `Level` and aggregate LGR; NRT: "Complete storage to parent block" |
+| `ICSTCG` | inverse of `ICSTPB`: per-cell child-grid pointer (1-based), nonzero only on refined-parent cells; NRT: "Complete storage to child grid" |
+| `ICSTGN` | per-cell grid number (1-based); NRT: "Complete storage to grid number" — equivalent to `1 + np.searchsorted(IGNTNC[1:], np.arange(n), side='right')` |
+| `IPSTAC` | active flag per property slot (a null-layer host can be inactive); NRT: "Packed storage to active status" |
 
 ### Corner-point encodings
 

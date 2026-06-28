@@ -8,14 +8,14 @@ to attach property values.
 from pysr3 import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/lgr_nested/lgr_nested.sr3", list_props_ts=None) as sr3:
-    grid = GridBuilder(sr3).build(grid_type="Cartesian", grid_mode="mixed")
+    grid = GridBuilder(sr3).build(grid_mode="mixed")  # grid_type auto-detected from IGNTGT
 ```
 
 ## `build()` parameters
 
 | Parameter | Default | Meaning |
 |---|---|---|
-| `grid_type` | — (required) | `"Cartesian"`, `"CornerPoint"`, or `"Radial"`. |
+| `grid_type` | `None` (auto-detect) | `"Cartesian"`, `"CornerPoint"`, or `"Radial"`. When `None`, the type is read from the file's `IGNTGT[0]` (`1=Cartesian`, `2=Radial`, `12=CornerPoint`). Pass explicitly to override; a warning is logged if the override contradicts the file. |
 | `grid_mode` | `"mixed"` | LGR display mode (see below). |
 | `include_inactive` | `False` | Keep cells with no property slot (`ICSTPS<=0`) or flagged inactive by `IPSTAC`. |
 | `keep_refined_parents` | `True` | Keep LGR refined parents in the grid even when `include_inactive=False`. They appear "inactive" only because their children replace them, and are needed as landing sites for `DataMapper.map_prop(aggregate=True)`. Set `False` for the legacy behavior (drops them; aggregation becomes a silent no-op on level-N grids). |

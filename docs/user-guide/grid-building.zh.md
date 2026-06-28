@@ -7,14 +7,14 @@
 from pysr3 import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/lgr_nested/lgr_nested.sr3", list_props_ts=None) as sr3:
-    grid = GridBuilder(sr3).build(grid_type="Cartesian", grid_mode="mixed")
+    grid = GridBuilder(sr3).build(grid_mode="mixed")  # 类型自动从 IGNTGT 检测
 ```
 
 ## `build()` 参数
 
 | 参数 | 默认值 | 含义 |
 |---|---|---|
-| `grid_type` | —（必填） | `"Cartesian"`、`"CornerPoint"` 或 `"Radial"`。 |
+| `grid_type` | `None`（自动检测） | `"Cartesian"`、`"CornerPoint"` 或 `"Radial"`。当为 `None` 时，从文件 `IGNTGT[0]` 推断（`1=Cartesian`、`2=Radial`、`12=CornerPoint`）。显式传入会覆盖自动检测；如与文件冲突会记录警告。 |
 | `grid_mode` | `"mixed"` | LGR 显示模式（见下文）。 |
 | `include_inactive` | `False` | 保留无属性槽（`ICSTPS<=0`）或被 `IPSTAC` 标记为非活跃的单元。 |
 | `keep_refined_parents` | `True` | 即使 `include_inactive=False`，仍在网格中保留 LGR 细化父单元。这些单元只是因为被子单元替换而显示为"非活跃"，但它们是 `DataMapper.map_prop(aggregate=True)` 的聚合落点；缺失会导致聚合在 level-N 网格上悄无声息地变成空操作。设为 `False` 可恢复旧行为。 |

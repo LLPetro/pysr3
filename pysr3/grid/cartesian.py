@@ -31,7 +31,7 @@ class CartesianGridStrategy(GridStrategy):
     facade's ``clean`` pass.
     """
 
-    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool,
+    def build(self, data: Dict, grid_mode: str, include_inactive: bool,
               keep_refined_parents: bool = True):
         try:
             igntnc = data["IGNTNC"]
@@ -128,6 +128,7 @@ class CartesianGridStrategy(GridStrategy):
             pb_ymin[start:end] = y_min[start:end]
 
         # --- Filter ---
+        icstcg = data.get("ICSTCG")
         keep_mask = np.ones(total_cells, dtype=bool)
         if not include_inactive:
             active = active_cell_mask(icstps, data)
@@ -135,11 +136,11 @@ class CartesianGridStrategy(GridStrategy):
                 # Refined parents are structurally inactive (children replace
                 # them), not physically inactive — re-include them so they can
                 # serve as landing sites for LGR aggregation.
-                rp = refined_parent_ids(icstpb, igntnc)
+                rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
                 if rp.size:
                     active[rp] = True
             keep_mask &= active
-        keep_mask &= grid_mode_keep_mask(grid_mode, level, icstpb, igntnc)
+        keep_mask &= grid_mode_keep_mask(grid_mode, level, icstpb, igntnc, icstcg=icstcg)
 
         indices = np.where(keep_mask)[0]
         if indices.size == 0:

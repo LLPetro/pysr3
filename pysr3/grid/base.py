@@ -59,7 +59,6 @@ class GridStrategy(ABC):
     def build(
         self,
         data: Dict,
-        time_step: int,
         grid_mode: str,
         include_inactive: bool,
         keep_refined_parents: bool = True,
@@ -67,7 +66,10 @@ class GridStrategy(ABC):
         """Return an ``UnstructuredGrid`` with standard cell-data arrays.
 
         Implementations must stamp ``PropGlobalID`` and ``GlobalCellID`` so
-        ``DataMapper`` can attach property values.
+        ``DataMapper`` can attach property values. The strategy receives the
+        already-fetched ``data`` dict (see ``SR3Indexer.get_grid_data``); the
+        facade resolves the time-step before calling, so strategies never need
+        to re-read the file.
 
         ``keep_refined_parents`` (default ``True``): when ``include_inactive`` is
         ``False``, refined-parent cells (flagged ``IPSTAC=0`` solely because

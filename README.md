@@ -28,13 +28,29 @@ pip install -e .          # or: pip install -r requirements.txt
 from pysr3 import SR3Indexer, GridBuilder, DataMapper
 
 with SR3Indexer("model.sr3") as ix:
-    grid = GridBuilder(ix).build(grid_type="CornerPoint", grid_mode="mixed")
-    df = DataMapper(ix).map_prop(grid, "PRES", time_step=0)
+    # grid_type is auto-detected from /SpatialProperties/<step>/GRID/IGNTGT[0]
+    grid = GridBuilder(ix).build(grid_mode="mixed")
+    df = DataMapper(ix).map_prop(grid, "PRES", times=0)
     grid.save("grid.vtu")
 ```
 
-`GridBuilder.build` accepts `grid_type` in
-`available_grid_types()` (`"Cartesian"`, `"CornerPoint"`, `"Radial"`).
+Highlights:
+
+- **Auto-detected grid type.** Omit `grid_type` and the builder picks
+  `Cartesian` / `CornerPoint` / `Radial` from `IGNTGT[0]`. Pass it explicitly
+  to override (a warning is logged on mismatch).
+- **Unit conversion.** Every value-returning method accepts `to_unit=` —
+  e.g. `mapper.map_prop(grid, "PRES", 0, to_unit="psi")` or
+  `ix.get_well_data(["WELL 1"], ["BHP"], to_unit="internal")`. Powered by the
+  file's own `/General/UnitConversionTable`; no external library required.
+- **Pore-volume-weighted aggregation.** `agg_method="pore_volume_mean"`
+  weights LGR child-to-parent rollup by `BLOCKPVOL` — the right average for
+  fluid properties (pressure, saturations, STOIIP). The bulk-volume
+  variant `agg_method="volume_mean"` (MODBVOL-weighted) is also supported.
+
+`GridBuilder.build` accepts `grid_type` in `available_grid_types()`
+(`"Cartesian"`, `"CornerPoint"`, `"Radial"`) when you need to override
+auto-detection.
 
 ## Validation / examples
 

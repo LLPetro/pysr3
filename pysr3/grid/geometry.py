@@ -73,10 +73,34 @@ def infer_levels(icstpb: np.ndarray, igntnc: np.ndarray) -> np.ndarray:
     return level
 
 
-def refined_parent_ids(icstpb: np.ndarray, igntnc: np.ndarray) -> np.ndarray:
-    """Return 0-based IDs of parent cells that LGR children have replaced."""
+def refined_parent_ids(
+    icstpb: np.ndarray,
+    igntnc: np.ndarray,
+    *,
+    icstcg: np.ndarray | None = None,
+) -> np.ndarray:
+    """Return 0-based IDs of parent cells that LGR children have replaced.
+
+    Two code paths produce the same result:
+
+    1. **Preferred (``icstcg`` provided)**: read CMG's ``ICSTCG`` array
+       ("Complete storage to child grid"), which is nonzero exactly on the
+       refined-parent cells. O(n_cells), one allocation.
+    2. **Fallback (``icstcg=None`` or length mismatch)**: scan ``ICSTPB`` for
+       the LGR-cell slice and take unique parent pointers. Matches the original
+       implementation byte-for-byte; works on files that don't carry ``ICSTCG``.
+
+    Equivalence between the two paths is asserted across every bundled SR3
+    fixture (including the 1M-cell multibranch case) by
+    ``test/test_grid_geometry.py::test_refined_parent_ids_paths_agree_on_real_fixtures``.
+    """
     icstpb = np.asarray(icstpb)
     igntnc = np.asarray(igntnc)
+    if icstcg is not None:
+        cg = np.asarray(icstcg)
+        if cg.size == icstpb.size:
+            return np.where(cg > 0)[0].astype(np.int64)
+        # Length mismatch — corrupt or pruned file. Fall through to the scan.
     if len(igntnc) <= 1:
         return np.empty(0, dtype=np.int64)
     lgr_start = int(igntnc[1])
@@ -90,6 +114,7 @@ def grid_mode_keep_mask(
     level: np.ndarray,
     icstpb: np.ndarray | None,
     igntnc: np.ndarray | None,
+    icstcg: np.ndarray | None = None,
 ) -> np.ndarray:
     """Boolean keep-mask for the requested display mode (geometry/level only).
 
@@ -98,14 +123,16 @@ def grid_mode_keep_mask(
         - ``refined``: keep only refined cells (level > 0).
         - ``levelN`` : keep only cells at level ``N``.
 
-    The active-cell filter is applied separately by the caller.
+    The active-cell filter is applied separately by the caller. When ``icstcg``
+    is provided it is forwarded to :func:`refined_parent_ids` for the faster
+    O(n) lookup; otherwise the ``ICSTPB`` scan is used.
     """
     total = len(level)
     keep = np.ones(total, dtype=bool)
 
     if grid_mode == "mixed":
         if icstpb is not None and igntnc is not None:
-            keep[refined_parent_ids(icstpb, igntnc)] = False
+            keep[refined_parent_ids(icstpb, igntnc, icstcg=icstcg)] = False
     elif grid_mode == "refined":
         keep &= level > 0
     elif grid_mode.startswith("level"):

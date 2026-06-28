@@ -31,7 +31,7 @@ MAX_ANGLE_DEG = 5.0
 class RadialGridStrategy(GridStrategy):
     """Build a radial grid, subdividing wide wedges for smooth visualization."""
 
-    def build(self, data: Dict, time_step: int, grid_mode: str, include_inactive: bool,
+    def build(self, data: Dict, grid_mode: str, include_inactive: bool,
               keep_refined_parents: bool = True):
         try:
             igntnc = data["IGNTNC"]
@@ -55,7 +55,11 @@ class RadialGridStrategy(GridStrategy):
         dr_all, arc_length_all, dz_all = bs[:, 0], bs[:, 1], bs[:, 2]
 
         is_kdir_up = parse_kdir(data, default="DOWN") == "UP"
-        mode_keep = grid_mode_keep_mask(grid_mode, level, icstpb, igntnc)
+        # ICSTCG ("Complete storage to child grid") — fetched once and threaded
+        # into both grid_mode_keep_mask and the refined_parent_ids landing-site
+        # restore below, so the O(n) fast path is taken for radial too.
+        icstcg = data.get("ICSTCG")
+        mode_keep = grid_mode_keep_mask(grid_mode, level, icstpb, igntnc, icstcg=icstcg)
 
         # Pre-compute the active-cell mask once, optionally re-including refined
         # parents (structurally inactive but needed as aggregation landing sites).
@@ -64,7 +68,7 @@ class RadialGridStrategy(GridStrategy):
         else:
             active_full = active_cell_mask(icstps, data)
             if keep_refined_parents:
-                rp = refined_parent_ids(icstpb, igntnc)
+                rp = refined_parent_ids(icstpb, igntnc, icstcg=icstcg)
                 if rp.size:
                     active_full[rp] = True
 
