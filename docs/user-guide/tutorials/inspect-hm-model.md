@@ -23,8 +23,8 @@ from pysr3 import SR3Indexer, GridBuilder, DataMapper
 SR3 = "test/50the_datafile/tutorial_hm.sr3"
 
 with SR3Indexer(SR3, eager_list_steps=None) as sr3:
-    times = sr3.get_spatial_time_steps()                 # [0, 9, 26, 30, 34, 37, 40, 43]
-    print("times (days):", [round(sr3.get_time_offset(t), 1) for t in times])
+    time_steps = sr3.get_spatial_time_steps()                 # [0, 9, 26, 30, 34, 37, 40, 43]
+    print("times (days):", [round(sr3.get_time_offset(t), 1) for t in time_steps])
     print("grid steps:", sr3.get_grid_time_steps())   # [0]
     print("properties @ t0:", sr3.get_available_properties(0))
     print("time-series entities:", sr3.get_timeseries_entities())
@@ -468,7 +468,7 @@ python tools/export_case_assets.py --case tutorial_hm --scale-z 10
 
 ## 15. Advanced recipes
 
-These reuse the `sr3`, `grid`, `mapper`, `disp`, and `times` objects from the
+These reuse the `sr3`, `grid`, `mapper`, `disp`, and `time_steps` objects from the
 sections above.
 
 ### Difference map between two times
@@ -477,8 +477,8 @@ Subtract two mapped snapshots to see *change*, and show it with a **diverging**
 colormap centered on zero — here the pressure drawdown from first to last step:
 
 ```python
-pres0 = mapper.map_prop(grid, "PRES", times[0]).iloc[:, 0].to_numpy()
-presL = mapper.map_prop(grid, "PRES", times[-1]).iloc[:, 0].to_numpy()
+pres0 = mapper.map_prop(grid, "PRES", time_steps[0]).iloc[:, 0].to_numpy()
+presL = mapper.map_prop(grid, "PRES", time_steps[-1]).iloc[:, 0].to_numpy()
 disp.cell_data["dPRES"] = presL - pres0
 
 m = np.nanmax(np.abs(disp.cell_data["dPRES"]))      # symmetric range about 0
@@ -500,17 +500,17 @@ Write one GIF frame per time step. Fix `clim` across frames so colors are
 comparable, and mutate the scalar buffer **in place** so the same actor updates:
 
 ```python
-lo = min(mapper.map_prop(grid, "PRES", t).iloc[:, 0].min() for t in times)
-hi = max(mapper.map_prop(grid, "PRES", t).iloc[:, 0].max() for t in times)
+lo = min(mapper.map_prop(grid, "PRES", t).iloc[:, 0].min() for t in time_steps)
+hi = max(mapper.map_prop(grid, "PRES", t).iloc[:, 0].max() for t in time_steps)
 
-disp.cell_data["PRES"] = mapper.map_prop(grid, "PRES", times[0]).iloc[:, 0].to_numpy()
+disp.cell_data["PRES"] = mapper.map_prop(grid, "PRES", time_steps[0]).iloc[:, 0].to_numpy()
 pres = disp.cell_data["PRES"]                       # mutate this buffer in place
 
 plotter = pv.Plotter(off_screen=True)               # off-screen for GIF capture
 plotter.add_mesh(disp, scalars="PRES", cmap="turbo", clim=(lo, hi))
 plotter.camera_position = "iso"
 plotter.open_gif("pres_over_time.gif", fps=2)
-for t in times:
+for t in time_steps:
     pres[:] = mapper.map_prop(grid, "PRES", t).iloc[:, 0].to_numpy()
     plotter.add_text(f"day {sr3.get_time_offset(t):.0f}", name="day")
     plotter.write_frame()
@@ -538,10 +538,10 @@ A proper field-average pressure weights each cell by its bulk volume. `MODBVOL`
 is static (written only at step 0), so read the weights once and reuse them:
 
 ```python
-bv = mapper.map_prop(grid, "MODBVOL", times[0]).iloc[:, 0].to_numpy()   # static weights
+bv = mapper.map_prop(grid, "MODBVOL", time_steps[0]).iloc[:, 0].to_numpy()   # static weights
 
 days, avg = [], []
-for t in times:
+for t in time_steps:
     p = mapper.map_prop(grid, "PRES", t).iloc[:, 0].to_numpy()
     ok = np.isfinite(p) & np.isfinite(bv)
     days.append(sr3.get_time_offset(t))
@@ -565,7 +565,7 @@ plt.xlabel("Time (days)"); plt.ylabel("Volume-weighted mean PRES (kPa)"); plt.sh
 | Coordinate filter | `grid.clip_box(...)`, `grid.clip(...)`, threshold on `I/J/K` |
 | Cross-section | `grid.slice(normal=..., origin=...)` |
 | Contour lines | `slice(...).cell_data_to_point_data().contour(...)` |
-| Point time series | `map_prop(grid, kw, all_times).iloc[cell]` |
+| Point time series | `map_prop(grid, kw, all_time_steps).iloc[cell]` |
 | Well time series | `get_well_data(...)`, `get_timeseries_data(...)` |
 | Difference map | map at two times, subtract, diverging `cmap` + symmetric `clim` |
 | Animate over time | `Plotter.open_gif(...)` + `write_frame()` per step |

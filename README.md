@@ -30,7 +30,7 @@ from pysr3 import SR3Indexer, GridBuilder, DataMapper
 with SR3Indexer("model.sr3") as ix:
     # grid_type is auto-detected from /SpatialProperties/<step>/GRID/IGNTGT[0]
     grid = GridBuilder(ix).build(grid_mode="mixed")
-    df = DataMapper(ix).map_prop(grid, "PRES", times=0)
+    df = DataMapper(ix).map_prop(grid, "PRES", time_steps=0)
     grid.save("grid.vtu")
 ```
 

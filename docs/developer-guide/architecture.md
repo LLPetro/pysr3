@@ -62,11 +62,11 @@ sequenceDiagram
     participant Mapper as DataMapper
 
     User->>Indexer: open .sr3
-    Indexer->>Indexer: index metadata, times, grid steps, properties
+    Indexer->>Indexer: index metadata, time steps, grid steps, properties
     User->>Builder: build(grid_type, grid_mode, time_step)
     Builder->>Indexer: get_grid_data(time_step)
     Builder-->>User: UnstructuredGrid
-    User->>Mapper: map_prop(grid, keywords, times)
+    User->>Mapper: map_prop(grid, keywords, time_steps)
     Mapper->>Indexer: get_property_data(keyword, time)
     Mapper-->>User: DataFrame
 ```

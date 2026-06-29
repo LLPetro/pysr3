@@ -16,8 +16,8 @@ from pysr3 import SR3Indexer, GridBuilder, DataMapper
 SR3 = "test/50the_datafile/tutorial_hm.sr3"
 
 with SR3Indexer(SR3, eager_list_steps=None) as sr3:
-    times = sr3.get_spatial_time_steps()                 # [0, 9, 26, 30, 34, 37, 40, 43]
-    print("times (days):", [round(sr3.get_time_offset(t), 1) for t in times])
+    time_steps = sr3.get_spatial_time_steps()                 # [0, 9, 26, 30, 34, 37, 40, 43]
+    print("times (days):", [round(sr3.get_time_offset(t), 1) for t in time_steps])
     print("grid steps:", sr3.get_grid_time_steps())   # [0]
     print("properties @ t0:", sr3.get_available_properties(0))
     print("time-series entities:", sr3.get_timeseries_entities())
@@ -432,15 +432,15 @@ python tools/export_case_assets.py --case tutorial_hm --scale-z 10
 
 ## 15. 进阶用法
 
-以下示例均复用上述各节中的 `sr3`、`grid`、`mapper`、`disp` 和 `times` 对象。
+以下示例均复用上述各节中的 `sr3`、`grid`、`mapper`、`disp` 和 `time_steps` 对象。
 
 ### 两个时间步之间的差值图
 
 将两个时间快照相减以观察*变化*，并使用以零为中心的**发散色图**展示——此处为从第一步到最后一步的压降：
 
 ```python
-pres0 = mapper.map_prop(grid, "PRES", times[0]).iloc[:, 0].to_numpy()
-presL = mapper.map_prop(grid, "PRES", times[-1]).iloc[:, 0].to_numpy()
+pres0 = mapper.map_prop(grid, "PRES", time_steps[0]).iloc[:, 0].to_numpy()
+presL = mapper.map_prop(grid, "PRES", time_steps[-1]).iloc[:, 0].to_numpy()
 disp.cell_data["dPRES"] = presL - pres0
 
 m = np.nanmax(np.abs(disp.cell_data["dPRES"]))      # symmetric range about 0
@@ -460,17 +460,17 @@ plotter.show()
 每个时间步写入一帧 GIF。在所有帧上固定 `clim` 以保证颜色可比，并**原地**修改标量缓冲区，使同一 actor 得到更新：
 
 ```python
-lo = min(mapper.map_prop(grid, "PRES", t).iloc[:, 0].min() for t in times)
-hi = max(mapper.map_prop(grid, "PRES", t).iloc[:, 0].max() for t in times)
+lo = min(mapper.map_prop(grid, "PRES", t).iloc[:, 0].min() for t in time_steps)
+hi = max(mapper.map_prop(grid, "PRES", t).iloc[:, 0].max() for t in time_steps)
 
-disp.cell_data["PRES"] = mapper.map_prop(grid, "PRES", times[0]).iloc[:, 0].to_numpy()
+disp.cell_data["PRES"] = mapper.map_prop(grid, "PRES", time_steps[0]).iloc[:, 0].to_numpy()
 pres = disp.cell_data["PRES"]                       # mutate this buffer in place
 
 plotter = pv.Plotter(off_screen=True)               # off-screen for GIF capture
 plotter.add_mesh(disp, scalars="PRES", cmap="turbo", clim=(lo, hi))
 plotter.camera_position = "iso"
 plotter.open_gif("pres_over_time.gif", fps=2)
-for t in times:
+for t in time_steps:
     pres[:] = mapper.map_prop(grid, "PRES", t).iloc[:, 0].to_numpy()
     plotter.add_text(f"day {sr3.get_time_offset(t):.0f}", name="day")
     plotter.write_frame()
@@ -496,10 +496,10 @@ plt.xlabel("PRES (kPa)"); plt.ylabel("cell count"); plt.show()
 合理的区域平均压力需以每个单元的体积为权重。`MODBVOL` 是静态属性（仅在步骤 0 写入），因此只需读取一次权重并重复使用：
 
 ```python
-bv = mapper.map_prop(grid, "MODBVOL", times[0]).iloc[:, 0].to_numpy()   # static weights
+bv = mapper.map_prop(grid, "MODBVOL", time_steps[0]).iloc[:, 0].to_numpy()   # static weights
 
 days, avg = [], []
-for t in times:
+for t in time_steps:
     p = mapper.map_prop(grid, "PRES", t).iloc[:, 0].to_numpy()
     ok = np.isfinite(p) & np.isfinite(bv)
     days.append(sr3.get_time_offset(t))
@@ -523,7 +523,7 @@ plt.xlabel("Time (days)"); plt.ylabel("Volume-weighted mean PRES (kPa)"); plt.sh
 | 坐标过滤 | `grid.clip_box(...)`、`grid.clip(...)`、对 `I/J/K` 使用 threshold |
 | 剖面/切片 | `grid.slice(normal=..., origin=...)` |
 | 等值线 | `slice(...).cell_data_to_point_data().contour(...)` |
-| 点时序 | `map_prop(grid, kw, all_times).iloc[cell]` |
+| 点时序 | `map_prop(grid, kw, all_time_steps).iloc[cell]` |
 | 井时序 | `get_well_data(...)`、`get_timeseries_data(...)` |
 | 差值图 | 两时间步属性映射相减，使用发散 `cmap` 加对称 `clim` |
 | 动画 | `Plotter.open_gif(...)` + 每步调用 `write_frame()` |
