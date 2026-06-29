@@ -3,7 +3,7 @@
 ## One well's BHP
 
 ```python
-from pysr3 import SR3Indexer
+from sr3kit import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
     df = sr3.get_well_data(wells=["STEAM INJT"], variables=["BHP"])

@@ -3,7 +3,7 @@
 CMG SR3 files store every property in one of two unit systems CMG calls
 **Output Unit** (what the bytes are written in — chosen by the user via
 `*INUNIT`/`*OUTUNIT` in the DAT) and **Internal Unit** (CMG's solver
-units — kPa, K, m, m², day, …). `pysr3` reads both and exposes a single
+units — kPa, K, m, m², day, …). `sr3kit` reads both and exposes a single
 `to_unit=` argument that lets you request either, or any specific unit
 the file's `UnitConversionTable` knows about.
 
@@ -42,8 +42,8 @@ Every value-returning method accepts the same vocabulary:
 The label always matches the values — they move together.
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
-from pysr3.data_mapper import DataMapper
+from sr3kit import SR3Indexer, GridBuilder
+from sr3kit.data_mapper import DataMapper
 
 with SR3Indexer("model.sr3") as sr3:
     # Well bottom-hole pressure: stored in kPa, requested in psi
@@ -67,17 +67,17 @@ sr3.get_unit(keyword)          # the unit string for any policy
 sr3.convert(keyword, values, to_unit)  # the conversion math, vectorized over arrays
 ```
 
-The conversion table is provided by CMG; `pysr3` only reads and composes —
+The conversion table is provided by CMG; `sr3kit` only reads and composes —
 no external `pint`-style library is needed.
 
 ## Two quiet exceptions
 
 1. **`MasterTimeTable` time offsets** are stored in **days** regardless of the
    file's Output Time unit (the column header literally says `"Offset in days"`).
-   `pysr3.get_time_offset()` returns those values as-is. Rate denominators
+   `sr3kit.get_time_offset()` returns those values as-is. Rate denominators
    (`OILRATSC = Volume / WellRateTime`) follow the Output Unit choice.
 
 2. **Temperature canonical = `C`** in `UnitConversionTable`, while
-   `UnitsTable.Internal Unit` for Temperature says `K`. `pysr3.convert` chains
+   `UnitsTable.Internal Unit` for Temperature says `K`. `sr3kit.convert` chains
    `stored → C → K` automatically; you don't need to know about it unless you
    read UCT yourself.

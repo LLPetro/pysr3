@@ -1,9 +1,9 @@
 """Public grid-construction facade.
 
 ``GridBuilder`` is a thin dispatcher: it fetches the raw grid arrays from the
-indexer once, hands them to the registered :class:`~pysr3.grid.base.GridStrategy`
+indexer once, hands them to the registered :class:`~sr3kit.grid.base.GridStrategy`
 for the requested ``grid_type``, then merges coincident points. The heavy
-lifting lives in the :mod:`pysr3.grid` subpackage.
+lifting lives in the :mod:`sr3kit.grid` subpackage.
 
 Backward-compatible entry points preserved from earlier versions:
 ``build``, ``build_dfn_segments``, ``build_dfn_units``.
@@ -48,7 +48,7 @@ class GridBuilder:
         """Build a grid of the given ``grid_type``.
 
         Args:
-            grid_type: One of :func:`pysr3.grid.available_grid_types`
+            grid_type: One of :func:`sr3kit.grid.available_grid_types`
                 (``"Cartesian"``, ``"CornerPoint"``, ``"Radial"``). Default
                 ``None`` triggers auto-detection from
                 ``/SpatialProperties/<step>/GRID/IGNTGT[0]``; pass explicitly
@@ -127,7 +127,7 @@ class GridBuilder:
         merge_points: bool = False,
         merge_tolerance: float = 1e-10,
     ) -> pv.UnstructuredGrid:
-        """Build embedded DFN segment surfaces (see :mod:`pysr3.grid.dfn`)."""
+        """Build embedded DFN segment surfaces (see :mod:`sr3kit.grid.dfn`)."""
         return dfn.build_dfn_segments(
             self.indexer,
             time_step=time_step,
@@ -142,7 +142,7 @@ class GridBuilder:
         merge_points: bool = False,
         merge_tolerance: float = 1e-10,
     ) -> pv.UnstructuredGrid:
-        """Build original DFU surfaces (see :mod:`pysr3.grid.dfn`)."""
+        """Build original DFU surfaces (see :mod:`sr3kit.grid.dfn`)."""
         return dfn.build_dfn_units(
             self.indexer,
             time_step=time_step,

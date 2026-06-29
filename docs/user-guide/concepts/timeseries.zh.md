@@ -1,6 +1,6 @@
 # 井与时序
 
-SR3 将时序结果存储于 `/TimeSeries` 下。pysr3 针对以下实体进行通用读取：
+SR3 将时序结果存储于 `/TimeSeries` 下。sr3kit 针对以下实体进行通用读取：
 
 - `WELLS`
 - `LAYERS`
@@ -16,12 +16,12 @@ SR3 将时序结果存储于 `/TimeSeries` 下。pysr3 针对以下实体进行�
 (time, variable, origin)
 ```
 
-其中 `time` ↔ `Timesteps`，`variable` ↔ `Variables`，`origin` ↔ `Origins`（井/层/组/扇区名称）。`WELLS` 只是其中一种实体。pysr3 自动处理此轴顺序，并返回长格式（整洁）DataFrame。
+其中 `time` ↔ `Timesteps`，`variable` ↔ `Variables`，`origin` ↔ `Origins`（井/层/组/扇区名称）。`WELLS` 只是其中一种实体。sr3kit 自动处理此轴顺序，并返回长格式（整洁）DataFrame。
 
 ## 核心 API
 
 ```python
-from pysr3 import SR3Indexer
+from sr3kit import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
     print(sr3.get_timeseries_entities())          # ['GROUPS', 'LAYERS', 'WELLS', ...]

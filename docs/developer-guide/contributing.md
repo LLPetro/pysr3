@@ -4,7 +4,7 @@
 
 ```bash
 git clone <repository-url>
-cd pysr3
+cd sr3kit
 pip install -e ".[dev]"     # runtime + pytest
 pytest                       # should report 28 passed
 ```
@@ -38,7 +38,7 @@ mkdocs serve                 # live preview at http://127.0.0.1:8000
 The strategy registry makes this additive — no edits to `GridBuilder`:
 
 ```python
-# pysr3/grid/my_family.py
+# sr3kit/grid/my_family.py
 import pyvista as pv
 from .base import GridStrategy, register_strategy
 from .geometry import active_cell_mask, infer_levels  # reuse helpers
@@ -53,7 +53,7 @@ class MyFamilyStrategy(GridStrategy):
         return grid
 ```
 
-Then import it for its registration side effect in `pysr3/grid_builder.py`:
+Then import it for its registration side effect in `sr3kit/grid_builder.py`:
 
 ```python
 from .grid import my_family as _my_family  # noqa: F401

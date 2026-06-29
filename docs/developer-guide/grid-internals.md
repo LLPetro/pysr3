@@ -1,6 +1,6 @@
 # Grid strategy internals
 
-`GridBuilder` is a facade. The geometry lives in `pysr3/grid/`, organized so
+`GridBuilder` is a facade. The geometry lives in `sr3kit/grid/`, organized so
 each grid family is isolated and the shared math is reused.
 
 ## The strategy registry

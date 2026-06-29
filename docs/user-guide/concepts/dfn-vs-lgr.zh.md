@@ -1,6 +1,6 @@
 # DFN vs LGR
 
-DFN 和 LGR 都会使网格关系变得复杂，但它们是**不同类型的对象**，pysr3 使用不同方法构建它们。
+DFN 和 LGR 都会使网格关系变得复杂，但它们是**不同类型的对象**，sr3kit 使用不同方法构建它们。
 
 | | LGR | DFN |
 |---|---|---|
@@ -23,10 +23,10 @@ DFN 和 LGR 都会使网格关系变得复杂，但它们是**不同类型的对
 *BEGIN_DFN
 ```
 
-CMG Results 报告共 315 个基质块、294 个活跃块，以及 1 个含 2 个 DFU 的 DFN。pysr3 可复现此结果：
+CMG Results 报告共 315 个基质块、294 个活跃块，以及 1 个含 2 个 DFU 的 DFN。sr3kit 可复现此结果：
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
@@ -53,7 +53,7 @@ print(dfn_units.n_cells)     # 2
   *APER-DF *ALL 0.05 0.08 0.10 0.12
 ```
 
-pysr3 读取到 4 个 DFU 和 12 个活跃段，`DFUAPT = 0.05/0.08/0.10/0.12`，`DFUPERM = 800/1200/1600/2000`。
+sr3kit 读取到 4 个 DFU 和 12 个活跃段，`DFUAPT = 0.05/0.08/0.10/0.12`，`DFUPERM = 800/1200/1600/2000`。
 
 ## DFN_REFINE
 
@@ -73,7 +73,7 @@ pysr3 读取到 4 个 DFU 和 12 个活跃段，`DFUAPT = 0.05/0.08/0.10/0.12`�
 
 - `XCORNCRCN/YCORNCRCN/ZCORNCRCN` — 角点坐标。
 - `ICSTPS` — 将几何单元映射到其属性槽。
-- `IPSTAC` — 每个属性槽的活跃标志。仅检查 `ICSTPS > 0` 会将空层宿主单元计为活跃；pysr3 同时检查 `IPSTAC`。
+- `IPSTAC` — 每个属性槽的活跃标志。仅检查 `ICSTPS > 0` 会将空层宿主单元计为活跃；sr3kit 同时检查 `IPSTAC`。
 
 **DFN**
 

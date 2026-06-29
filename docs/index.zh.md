@@ -6,7 +6,7 @@ hide:
 
 <section class="hero" markdown>
 
-# pysr3
+# sr3kit
 
 用于读取 **CMG SR3** 结果文件的第三方 Python 工具包：索引 HDF5 容器、为任意 SR3
 网格族构建 PyVista 网格，并将空间属性和时序结果映射到单元与 DataFrame。优先支持 STARS。
@@ -19,7 +19,7 @@ hide:
 
 </section>
 
-## 为什么选择 pysr3
+## 为什么选择 sr3kit
 
 <div class="feature-grid" markdown>
 
@@ -52,7 +52,7 @@ hide:
 ## 快速开始
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 with SR3Indexer("model.sr3") as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint", grid_mode="mixed")

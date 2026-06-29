@@ -3,7 +3,7 @@ requires = ["setuptools>=61"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "pysr3"
+name = "sr3kit"
 version = "0.1.0"
 description = "Third-party reader and visualizer for CMG SR3 files"
 readme = "README.md"
@@ -23,7 +23,7 @@ dev = ["pytest>=7"]
 docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.24", "mkdocs-static-i18n>=1.2", "black>=24.0"]
 
 [tool.setuptools]
-packages = ["pysr3", "pysr3.grid"]
+packages = ["sr3kit", "sr3kit.grid"]
 
 [tool.pytest.ini_options]
 testpaths = ["test"]

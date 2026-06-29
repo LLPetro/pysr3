@@ -1,6 +1,6 @@
 # 用户指南
 
-本指南面向 **pysr3 的使用者**——希望读取 CMG SR3 结果、构建网格、映射属性以及
+本指南面向 **sr3kit 的使用者**——希望读取 CMG SR3 结果、构建网格、映射属性以及
 提取井/时序数据的工程师和分析人员。
 
 如果您希望了解或扩展内部实现，请参阅
@@ -12,7 +12,7 @@
 
 -   :material-download: **[安装](installation.md)**
 
-    安装 pysr3 及其依赖项，包含无头渲染的相关说明。
+    安装 sr3kit 及其依赖项，包含无头渲染的相关说明。
 
 -   :material-rocket-launch: **[快速开始](quickstart.md)**
 
@@ -38,10 +38,10 @@
 
 ## 三个层次
 
-pysr3 由三个小型、可组合的层次构成。大多数工作流按顺序使用全部三层：
+sr3kit 由三个小型、可组合的层次构成。大多数工作流按顺序使用全部三层：
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 ```
 
 | 层次 | 类 | 用途 |

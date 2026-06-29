@@ -1,6 +1,6 @@
 cff-version: 1.2.0
 message: "If you use this software, please cite it using the metadata below."
-title: "pysr3: a third-party reader, grid builder, and property mapper for CMG SR3 files"
+title: "sr3kit: a third-party reader, grid builder, and property mapper for CMG SR3 files"
 abstract: >-
   A Python toolkit to read CMG SR3 result files, build PyVista grids from any
   SR3 grid family, and map spatial and time-series results onto cells and
@@ -12,8 +12,8 @@ authors:
 license: MIT
 version: "0.1.0"
 date-released: "2026-05-25"
-repository-code: "https://github.com/LLPetro/pysr3"
-url: "https://llpetro.github.io/pysr3/"
+repository-code: "https://github.com/LLPetro/sr3kit"
+url: "https://llpetro.github.io/sr3kit/"
 keywords:
   - CMG
   - SR3

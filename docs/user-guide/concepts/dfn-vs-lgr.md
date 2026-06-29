@@ -1,7 +1,7 @@
 # DFN vs LGR
 
 Both DFN and LGR complicate grid relationships, but they are **different kinds
-of object** and pysr3 builds them with different methods.
+of object** and sr3kit builds them with different methods.
 
 | | LGR | DFN |
 |---|---|---|
@@ -28,10 +28,10 @@ level hierarchy.
 ```
 
 CMG Results reports 315 total matrix blocks, 294 active blocks, and 1 DFN with
-2 DFUs. pysr3 reproduces this:
+2 DFUs. sr3kit reproduces this:
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)
@@ -60,7 +60,7 @@ layer — a surface, not a volume:
   *APER-DF *ALL 0.05 0.08 0.10 0.12
 ```
 
-pysr3 reads 4 DFUs and 12 active segments, with `DFUAPT = 0.05/0.08/0.10/0.12`
+sr3kit reads 4 DFUs and 12 active segments, with `DFUAPT = 0.05/0.08/0.10/0.12`
 and `DFUPERM = 800/1200/1600/2000`.
 
 ## DFN_REFINE
@@ -86,7 +86,7 @@ falls back to the Cartesian/LGR arrays automatically.
 - `XCORNCRCN/YCORNCRCN/ZCORNCRCN` — corner coordinates.
 - `ICSTPS` — maps a geometry cell to its property slot.
 - `IPSTAC` — active flag per property slot. Looking only at `ICSTPS > 0` would
-  count null-layer host cells as active; pysr3 also checks `IPSTAC`.
+  count null-layer host cells as active; sr3kit also checks `IPSTAC`.
 
 **DFN**
 

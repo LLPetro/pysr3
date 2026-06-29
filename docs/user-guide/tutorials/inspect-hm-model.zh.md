@@ -11,7 +11,7 @@
 ## 1. 打开文件并查看内容
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 SR3 = "test/50the_datafile/tutorial_hm.sr3"
 

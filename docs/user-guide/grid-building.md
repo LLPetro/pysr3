@@ -5,7 +5,7 @@
 to attach property values.
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/lgr_nested/lgr_nested.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_mode="mixed")  # grid_type auto-detected from IGNTGT
@@ -94,7 +94,7 @@ DFN. See [DFN vs LGR](concepts/dfn-vs-lgr.md).
 Once you have a grid, attach results with `DataMapper`:
 
 ```python
-from pysr3 import DataMapper
+from sr3kit import DataMapper
 
 df = DataMapper(sr3).map_prop(grid, keywords=["PRES", "SO"], time_steps=[0])
 ```

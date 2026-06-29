@@ -38,7 +38,7 @@ test/50the_datafile/artifacts/
 若要通过 PyVista 以编程方式完成相同操作：
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/50the_datafile/tutorial_hm.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint")

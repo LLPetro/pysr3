@@ -1,6 +1,6 @@
 # 网格类型
 
-pysr3 优先支持 CMG **STARS**。手册中的基础 `*GRID` 类型包括
+sr3kit 优先支持 CMG **STARS**。手册中的基础 `*GRID` 类型包括
 `*CART`、`*VARI`、`*RADIAL` 和 `*CORNER`。`*REFINE` 是局部网格细化
 (LGR)——它是一种修饰符，而非基础类型。
 
@@ -15,7 +15,7 @@ pysr3 优先支持 CMG **STARS**。手册中的基础 `*GRID` 类型包括
 
 `*GRID *CART` 是规则笛卡尔网格；`*GRID *VARI` 允许可变单元
 尺寸和深度。两者均通过 `BLOCKSIZE` 和 `BLOCKDEPTH` 表达，因此
-pysr3 使用相同策略构建它们：
+sr3kit 使用相同策略构建它们：
 
 ```python
 grid = GridBuilder(sr3).build(grid_type="Cartesian")
@@ -23,7 +23,7 @@ grid = GridBuilder(sr3).build(grid_type="Cartesian")
 
 ## RADIAL
 
-`*GRID *RADIAL` 是径向/柱状网格。pysr3 从 `BLOCKSIZE`（Δr、弧长、Δz）和 `WELLRADIUS` 重建楔形几何，并对宽楔形进行细分，使其渲染为平滑弧线。
+`*GRID *RADIAL` 是径向/柱状网格。sr3kit 从 `BLOCKSIZE`（Δr、弧长、Δz）和 `WELLRADIUS` 重建楔形几何，并对宽楔形进行细分，使其渲染为平滑弧线。
 
 ```python
 grid = GridBuilder(sr3).build(grid_type="Radial")
@@ -31,7 +31,7 @@ grid = GridBuilder(sr3).build(grid_type="Radial")
 
 ## CORNER
 
-`*GRID *CORNER` 是角点网格。STARS 可以用三种不同方式写入角点几何；pysr3 自动检测并处理所有格式：
+`*GRID *CORNER` 是角点网格。STARS 可以用三种不同方式写入角点几何；sr3kit 自动检测并处理所有格式：
 
 - `NODES` + `BLOCKS` — 显式节点与单元连接关系（由 CMG 预计算）。
 - `XCORNCRCN` + `YCORNCRCN` + `ZCORNCRCN` — 压缩结构化角点。
@@ -50,7 +50,7 @@ grid = GridBuilder(sr3).build(grid_type="CornerPoint")
 
 ## LGR
 
-LGR 来自 `*REFINE`。pysr3 从父指针（`ICSTPB`）和段偏移（`IGNTNC`）推断每个单元的层级，并通过 `grid_mode`（`mixed`、`refined`、`levelN`）选择显示内容。支持嵌套（多层）细化，并通过 `test/lgr_nested/lgr_nested.sr3` 进行验证，其 `mixed` 网格在 0/1/2 层级上共保留 36 个叶子单元。
+LGR 来自 `*REFINE`。sr3kit 从父指针（`ICSTPB`）和段偏移（`IGNTNC`）推断每个单元的层级，并通过 `grid_mode`（`mixed`、`refined`、`levelN`）选择显示内容。支持嵌套（多层）细化，并通过 `test/lgr_nested/lgr_nested.sr3` 进行验证，其 `mixed` 网格在 0/1/2 层级上共保留 36 个叶子单元。
 
 ![嵌套 LGR 总览](../../assets/images/lgr_nested_overview.png)
 

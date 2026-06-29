@@ -8,7 +8,7 @@ Understand `CornerPoint` grids, Z-direction display, and the
 ## Read a CornerPoint grid
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3") as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint")
@@ -41,7 +41,7 @@ layer but is **not** a volumetric filling of that layer.
 ## Read the DFN
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 with SR3Indexer("test/convert_to_corner/convert_to_corner.sr3", eager_list_steps=None) as sr3:
     builder = GridBuilder(sr3)

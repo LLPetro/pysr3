@@ -1,6 +1,6 @@
 # Wells & time series
 
-SR3 stores time-series results under `/TimeSeries`. pysr3 reads them generically
+SR3 stores time-series results under `/TimeSeries`. sr3kit reads them generically
 for these entities:
 
 - `WELLS`
@@ -18,13 +18,13 @@ In STARS SR3, `TimeSeries/<entity>/Data` is a 3D array ordered:
 ```
 
 where `time` ↔ `Timesteps`, `variable` ↔ `Variables`, and `origin` ↔ `Origins`
-(well/layer/group/sector names). `WELLS` is just one such entity. pysr3 reads
+(well/layer/group/sector names). `WELLS` is just one such entity. sr3kit reads
 this axis order for you and returns a long-form (tidy) DataFrame.
 
 ## Core API
 
 ```python
-from pysr3 import SR3Indexer
+from sr3kit import SR3Indexer
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
     print(sr3.get_timeseries_entities())          # ['GROUPS', 'LAYERS', 'WELLS', ...]

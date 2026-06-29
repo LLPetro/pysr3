@@ -3,7 +3,7 @@
 Each SR3 grid family is implemented as a :class:`GridStrategy` subclass and
 registered under its public ``grid_type`` name. Adding a new grid type is
 therefore additive: write a strategy, decorate it with
-:func:`register_strategy`, and the :class:`pysr3.grid_builder.GridBuilder` facade
+:func:`register_strategy`, and the :class:`sr3kit.grid_builder.GridBuilder` facade
 picks it up automatically.
 """
 

@@ -14,7 +14,7 @@ ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from pysr3.sr3_indexer import SR3Indexer
+from sr3kit.sr3_indexer import SR3Indexer
 from tools.export_case_assets import CASES, CaseSpec
 
 

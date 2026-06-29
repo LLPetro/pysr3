@@ -1,6 +1,6 @@
 # User Guide
 
-This guide is for **users of pysr3** — engineers and analysts who want to read
+This guide is for **users of sr3kit** — engineers and analysts who want to read
 CMG SR3 results, build grids, map properties, and pull well/time-series data.
 
 If you want to understand or extend the internals, see the
@@ -12,7 +12,7 @@ If you want to understand or extend the internals, see the
 
 -   :material-download: **[Installation](installation.md)**
 
-    Install pysr3 and its dependencies, including notes for headless rendering.
+    Install sr3kit and its dependencies, including notes for headless rendering.
 
 -   :material-rocket-launch: **[Quickstart](quickstart.md)**
 
@@ -38,11 +38,11 @@ If you want to understand or extend the internals, see the
 
 ## The three layers
 
-pysr3 is organized as three small, composable layers. Most workflows use all
+sr3kit is organized as three small, composable layers. Most workflows use all
 three in sequence:
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 ```
 
 | Layer | Class | You use it to… |

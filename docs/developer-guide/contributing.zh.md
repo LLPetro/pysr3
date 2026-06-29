@@ -4,7 +4,7 @@
 
 ```bash
 git clone <repository-url>
-cd pysr3
+cd sr3kit
 pip install -e ".[dev]"     # runtime + pytest
 pytest                       # should report 28 passed
 ```
@@ -30,7 +30,7 @@ mkdocs serve                 # live preview at http://127.0.0.1:8000
 策略注册表使添加新类型成为纯增量操作——无需修改 `GridBuilder`：
 
 ```python
-# pysr3/grid/my_family.py
+# sr3kit/grid/my_family.py
 import pyvista as pv
 from .base import GridStrategy, register_strategy
 from .geometry import active_cell_mask, infer_levels  # reuse helpers
@@ -45,7 +45,7 @@ class MyFamilyStrategy(GridStrategy):
         return grid
 ```
 
-然后在 `pysr3/grid_builder.py` 中导入它以触发注册副作用：
+然后在 `sr3kit/grid_builder.py` 中导入它以触发注册副作用：
 
 ```python
 from .grid import my_family as _my_family  # noqa: F401

@@ -5,16 +5,16 @@
 - **Python** ≥ 3.9
 - **NumPy**、**h5py**、**PyVista**、**pandas**（自动安装）
 
-pysr3 通过 `h5py` 读取 SR3 文件，使用 NumPy 构建几何体，以 PyVista
+sr3kit 通过 `h5py` 读取 SR3 文件，使用 NumPy 构建几何体，以 PyVista
 `UnstructuredGrid` 对象返回网格，并使用 pandas 整理结果。
 
 ## 从源码安装
 
-在 pysr3 发布到 PyPI 之前，请从检出的代码安装：
+在 sr3kit 发布到 PyPI 之前，请从检出的代码安装：
 
 ```bash
 git clone <repository-url>
-cd pysr3
+cd sr3kit
 pip install -e .
 ```
 
@@ -35,9 +35,9 @@ pip install -e ".[docs]"   # mkdocs-material, to build this site
 ## 验证安装
 
 ```python
-import pysr3
-print(pysr3.__version__)
-print(pysr3.available_grid_types())   # ['Cartesian', 'CornerPoint', 'Radial']
+import sr3kit
+print(sr3kit.__version__)
+print(sr3kit.available_grid_types())   # ['Cartesian', 'CornerPoint', 'Radial']
 ```
 
 ## 无头/服务器渲染

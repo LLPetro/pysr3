@@ -61,7 +61,7 @@ A few relationships worth calling out:
 ## Typical call sequence
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 with SR3Indexer(path, eager_list_steps=None) as sr3:   # access
     builder = GridBuilder(sr3)                       # geometry facade

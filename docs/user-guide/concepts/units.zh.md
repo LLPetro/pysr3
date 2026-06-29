@@ -1,6 +1,6 @@
 # 单位与换算
 
-CMG SR3 文件中的每个属性都以 CMG 所谓的两种单位之一存储:**Output Unit**（实际写入字节所用的单位 — 由用户在 DAT 中通过 `*INUNIT`/`*OUTUNIT` 选择）和 **Internal Unit**（CMG 求解器内部使用的单位 — kPa、K、m、m²、day……）。`pysr3` 同时读取两者，并通过统一的 `to_unit=` 参数让你按需获取任一种,或文件 `UnitConversionTable` 中已知的任意具体单位。
+CMG SR3 文件中的每个属性都以 CMG 所谓的两种单位之一存储:**Output Unit**（实际写入字节所用的单位 — 由用户在 DAT 中通过 `*INUNIT`/`*OUTUNIT` 选择）和 **Internal Unit**（CMG 求解器内部使用的单位 — kPa、K、m、m²、day……）。`sr3kit` 同时读取两者，并通过统一的 `to_unit=` 参数让你按需获取任一种,或文件 `UnitConversionTable` 中已知的任意具体单位。
 
 ## 变量的单位从何而来
 
@@ -32,8 +32,8 @@ UnitConversionTable[(dim, unit)] -> (Gain, Offset)
 **标签始终与数值保持一致** —— 它们是一起变化的。
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
-from pysr3.data_mapper import DataMapper
+from sr3kit import SR3Indexer, GridBuilder
+from sr3kit.data_mapper import DataMapper
 
 with SR3Indexer("model.sr3") as sr3:
     # 井底压力:存储为 kPa,以 psi 输出
@@ -57,10 +57,10 @@ sr3.get_unit(keyword)          # 在任意策略下返回单位字符串
 sr3.convert(keyword, values, to_unit)  # 实际换算函数,对数组矢量化处理
 ```
 
-换算表由 CMG 提供;`pysr3` 仅读取并组合,**无需** `pint` 等外部单位库。
+换算表由 CMG 提供;`sr3kit` 仅读取并组合,**无需** `pint` 等外部单位库。
 
 ## 两个隐性例外
 
-1. **`MasterTimeTable` 时间偏移**始终以 **days** 存储,与文件的 Output Time 单位无关（该列的表头确实就叫 `"Offset in days"`）。`pysr3.get_time_offset()` 直接按 days 返回。流率分母（`OILRATSC = Volume / WellRateTime`）则遵循 Output Unit 设定。
+1. **`MasterTimeTable` 时间偏移**始终以 **days** 存储,与文件的 Output Time 单位无关（该列的表头确实就叫 `"Offset in days"`）。`sr3kit.get_time_offset()` 直接按 days 返回。流率分母（`OILRATSC = Volume / WellRateTime`）则遵循 Output Unit 设定。
 
-2. **温度规范化单位为 `C`** —— 在 `UnitConversionTable` 中,而 `UnitsTable.Internal Unit` 中温度记作 `K`。`pysr3.convert` 自动级联 `stored → C → K`;除非你直接读取 UCT,否则无需关心这件事。
+2. **温度规范化单位为 `C`** —— 在 `UnitConversionTable` 中,而 `UnitsTable.Internal Unit` 中温度记作 `K`。`sr3kit.convert` 自动级联 `stored → C → K`;除非你直接读取 UCT,否则无需关心这件事。

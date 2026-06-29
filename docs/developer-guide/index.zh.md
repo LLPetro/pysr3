@@ -1,8 +1,8 @@
 # 开发者指南
 
-本指南面向**贡献者和维护者**：介绍 pysr3 的结构、贯穿各层的数据模型，以及如何扩展和验证它。
+本指南面向**贡献者和维护者**：介绍 sr3kit 的结构、贯穿各层的数据模型，以及如何扩展和验证它。
 
-如果您只是想*使用* pysr3，请从[用户指南](../user-guide/index.md)开始。
+如果您只是想*使用* sr3kit，请从[用户指南](../user-guide/index.md)开始。
 
 <div class="grid cards" markdown>
 
@@ -35,7 +35,7 @@
 ## 源代码布局
 
 ```text
-pysr3/
+sr3kit/
 ├── __init__.py          # public API: SR3Indexer, GridBuilder, DataMapper, available_grid_types
 ├── sr3_indexer.py       # access layer
 ├── grid_builder.py      # geometry facade (dispatches to strategies)

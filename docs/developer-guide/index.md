@@ -1,9 +1,9 @@
 # Developer Guide
 
-This guide is for **contributors and maintainers**: how pysr3 is structured, the
+This guide is for **contributors and maintainers**: how sr3kit is structured, the
 data model that ties the layers together, and how to extend and validate it.
 
-If you just want to *use* pysr3, start with the [User Guide](../user-guide/index.md).
+If you just want to *use* sr3kit, start with the [User Guide](../user-guide/index.md).
 
 <div class="grid cards" markdown>
 
@@ -36,7 +36,7 @@ If you just want to *use* pysr3, start with the [User Guide](../user-guide/index
 ## Source layout
 
 ```text
-pysr3/
+sr3kit/
 ├── __init__.py          # public API: SR3Indexer, GridBuilder, DataMapper, available_grid_types
 ├── sr3_indexer.py       # access layer
 ├── grid_builder.py      # geometry facade (dispatches to strategies)

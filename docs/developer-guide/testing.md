@@ -1,6 +1,6 @@
 # Testing & validation
 
-pysr3 is validated at three levels: fast unit tests, integration against **real
+sr3kit is validated at three levels: fast unit tests, integration against **real
 STARS SR3 files**, and a golden behavior harness for refactors.
 
 ```mermaid
@@ -84,7 +84,7 @@ and diff afterward. The fingerprint captures `n_cells`, `n_points`, bounds, the
 full cell-data arrays, and mapped `PRES` for all grid modes plus DFN, comparing
 floats with `np.allclose` and integers with `array_equal`.
 
-This is how the grid-strategy refactor and the `core → pysr3` rename were proven
+This is how the grid-strategy refactor and the `core → sr3kit` rename were proven
 to produce bit-identical output across all 11 cases.
 
 !!! tip "Rule of thumb"

@@ -6,7 +6,7 @@ grid displayed with raw SR3 depths can therefore appear vertically flipped.
 
 ## Build coordinates vs. display coordinates
 
-pysr3 keeps the two separate:
+sr3kit keeps the two separate:
 
 | File | Purpose |
 |---|---|

@@ -18,7 +18,7 @@ first (see [Installation](../installation.md#headless--server-rendering)).
 ## 1. Open the file and see what's inside
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 SR3 = "test/50the_datafile/tutorial_hm.sr3"
 

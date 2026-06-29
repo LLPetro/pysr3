@@ -1,18 +1,18 @@
 /* ============================================================
-   pysr3 docs — "Sunset" theme (warm, light, lively)
+   sr3kit docs — "Sunset" theme (warm, light, lively)
    Orange primary + rose accent, amber→pink hero.
    ============================================================ */
 
 :root {
-  --pysr3-orange: #f97316;
-  --pysr3-orange-dark: #ea580c;
-  --pysr3-orange-light: #fb923c;
-  --pysr3-rose: #f43f5e;
-  --pysr3-amber: #fbbf24;
-  --pysr3-ink: #2b2117;
-  --pysr3-muted: #6b5d52;
-  --pysr3-line: #f0e6db;
-  --pysr3-paper: #fffdf9;
+  --sr3kit-orange: #f97316;
+  --sr3kit-orange-dark: #ea580c;
+  --sr3kit-orange-light: #fb923c;
+  --sr3kit-rose: #f43f5e;
+  --sr3kit-amber: #fbbf24;
+  --sr3kit-ink: #2b2117;
+  --sr3kit-muted: #6b5d52;
+  --sr3kit-line: #f0e6db;
+  --sr3kit-paper: #fffdf9;
 }
 
 /* ---- Light scheme: warm page + sunset accents ---- */
@@ -36,17 +36,17 @@
 
 .md-typeset h1,
 .md-typeset h2 {
-  color: var(--pysr3-ink);
+  color: var(--sr3kit-ink);
   font-weight: 750;
   letter-spacing: -0.01em;
 }
 
 .md-typeset a {
-  color: var(--pysr3-orange-dark);
+  color: var(--sr3kit-orange-dark);
 }
 
 .md-typeset a:hover {
-  color: var(--pysr3-rose);
+  color: var(--sr3kit-rose);
 }
 
 /* ---- Hero ---- */
@@ -120,7 +120,7 @@
 
 .feature-card {
   padding: 1.15rem;
-  border: 1px solid var(--pysr3-line);
+  border: 1px solid var(--sr3kit-line);
   border-radius: 1rem;
   background: linear-gradient(180deg, #ffffff, #fff6ec);
   box-shadow: 0 10px 28px rgba(249, 115, 22, 0.09);
@@ -128,16 +128,16 @@
 
 .feature-card h3 {
   margin: 0 0 0.45rem;
-  color: var(--pysr3-ink);
+  color: var(--sr3kit-ink);
 }
 
 .feature-card .twemoji {
-  color: var(--pysr3-orange);
+  color: var(--sr3kit-orange);
 }
 
 .feature-card p {
   margin: 0;
-  color: var(--pysr3-muted);
+  color: var(--sr3kit-muted);
 }
 
 /* ---- Gallery cards ---- */
@@ -151,7 +151,7 @@
 .gallery-card {
   display: block;
   overflow: hidden;
-  border: 1px solid var(--pysr3-line);
+  border: 1px solid var(--sr3kit-line);
   border-radius: 1rem;
   background: white;
   box-shadow: 0 12px 32px rgba(249, 115, 22, 0.1);
@@ -184,7 +184,7 @@
 
 .gallery-card p {
   margin: 0;
-  color: var(--pysr3-muted);
+  color: var(--sr3kit-muted);
 }
 
 /* ============================================================
@@ -197,9 +197,9 @@
   --md-accent-fg-color: #fb7185;
   --md-typeset-a-color: #fdba74;
 
-  --pysr3-ink: #f6ece2;
-  --pysr3-muted: #c2b2a4;
-  --pysr3-line: #3a2e25;
+  --sr3kit-ink: #f6ece2;
+  --sr3kit-muted: #c2b2a4;
+  --sr3kit-line: #3a2e25;
 }
 
 [data-md-color-scheme="slate"] .md-header {
@@ -224,7 +224,7 @@
 }
 
 [data-md-color-scheme="slate"] .feature-card .twemoji {
-  color: var(--pysr3-orange-light);
+  color: var(--sr3kit-orange-light);
 }
 
 [data-md-color-scheme="slate"] .gallery-card {
@@ -281,7 +281,7 @@
 .md-typeset .highlight,
 .md-typeset .highlighttable {
   margin: 1.15em 0;
-  border: 1px solid var(--pysr3-line);
+  border: 1px solid var(--sr3kit-line);
   border-radius: 0.7rem;
   box-shadow: 0 8px 24px rgba(17, 24, 39, 0.06);
   overflow: hidden;
@@ -319,11 +319,11 @@
 }
 
 .md-typeset .highlight:hover .md-clipboard {
-  color: var(--pysr3-orange-dark);
+  color: var(--sr3kit-orange-dark);
 }
 
 [data-md-color-scheme="slate"] .md-typeset .highlight:hover .md-clipboard {
-  color: var(--pysr3-orange-light);
+  color: var(--sr3kit-orange-light);
 }
 
 /* Slim, themed scrollbar for overflowing lines */

@@ -1,6 +1,6 @@
 # 命名与术语表
 
-本页是 pysr3 词汇的唯一权威：标识符、参数名、字典键、docstring、日志消息、散文均以此为准。
+本页是 sr3kit 词汇的唯一权威：标识符、参数名、字典键、docstring、日志消息、散文均以此为准。
 
 命名漂移的代价很快显现：同一个概念出现三种写法，会让 grep 跑空、让每个评审者在脑中维护翻译表。遇到分歧时，请优先使用本页中的规范名，即使近义词更短或读起来更顺。
 
@@ -27,7 +27,7 @@ CMG SR3 文件中包含三种相关但不同的"步"概念：
 
 ## 属性与变量标识
 
-CMG 把 `/General/NameRecordTable` 的列称为 "keywords"。pysr3 区分两种类型：
+CMG 把 `/General/NameRecordTable` 的列称为 "keywords"。sr3kit 区分两种类型：
 
 | 概念 | 规范名 | 出现位置 |
 |---|---|---|
@@ -39,11 +39,11 @@ CMG 把 `/General/NameRecordTable` 的列称为 "keywords"。pysr3 区分两种�
 
 ## 储层单元（cell）术语
 
-| 概念 | pysr3 散文中的规范 | CMG/SR3 约定 |
+| 概念 | sr3kit 散文中的规范 | CMG/SR3 约定 |
 |---|---|---|
 | 离散化储层体积 | **cell**（`n_cells`、`GlobalCellID`、`active_cell_mask`、`total_cells`） | "block"（`BLOCKSIZE`、`BLOCKDEPTH`、`BLOCKPVOL`、`MODBVOL` = "Modified Block Volume"） |
 
-**规则：** pysr3 的 docstring、注释、散文中一律说 **cell**。PyVista/VTK 同样使用 cell，与下游表示一致。**例外：** 字面引用 CMG keyword 或 NRT Long Name 时保留原文（例如 `MODBVOL` 仍称为 "Modified Block Volume"，不改写为 "Modified Cell Volume" —— 这是 CMG 命名，不应重写）。
+**规则：** sr3kit 的 docstring、注释、散文中一律说 **cell**。PyVista/VTK 同样使用 cell，与下游表示一致。**例外：** 字面引用 CMG keyword 或 NRT Long Name 时保留原文（例如 `MODBVOL` 仍称为 "Modified Block Volume"，不改写为 "Modified Cell Volume" —— 这是 CMG 命名，不应重写）。
 
 `concepts/volumes.md` 和 `concepts/dfn-vs-lgr.md` 各有一段词汇对照说明此等价。
 
@@ -88,7 +88,7 @@ CMG 把 `/General/NameRecordTable` 的列称为 "keywords"。pysr3 区分两种�
 | DataFrame 列标签 | `Unit` |
 | `agg_method` 加权变体 | `'bulk_volume_mean'`（MODBVOL 加权）与 `'pore_volume_mean'`（BLOCKPVOL 加权） |
 
-单位计算本身位于 :mod:`pysr3.units`（`UnitConverter` 类加纯函数 `parse_unit_key`、`parse_dim_tokens`）。`SR3Indexer` 持有一个 `self._units` 实例并将 `get_unit`/`convert` 转发给它；该协作者可以使用合成字典独立测试，无需打开 SR3 文件（见 `test/test_unit_converter.py`）。
+单位计算本身位于 :mod:`sr3kit.units`（`UnitConverter` 类加纯函数 `parse_unit_key`、`parse_dim_tokens`）。`SR3Indexer` 持有一个 `self._units` 实例并将 `get_unit`/`convert` 转发给它；该协作者可以使用合成字典独立测试，无需打开 SR3 文件（见 `test/test_unit_converter.py`）。
 
 ## 公共方法前缀约定
 

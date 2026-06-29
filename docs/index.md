@@ -6,7 +6,7 @@ hide:
 
 <section class="hero" markdown>
 
-# pysr3
+# sr3kit
 
 A third-party Python toolkit for reading **CMG SR3** result files: index the
 HDF5 container, build PyVista grids from any SR3 grid family, and map spatial
@@ -20,7 +20,7 @@ and time-series results onto cells and DataFrames. STARS first.
 
 </section>
 
-## Why pysr3
+## Why sr3kit
 
 <div class="feature-grid" markdown>
 
@@ -54,7 +54,7 @@ DataFrames, validated against real STARS output.
 ## Quickstart
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 with SR3Indexer("model.sr3") as sr3:
     grid = GridBuilder(sr3).build(grid_type="CornerPoint", grid_mode="mixed")

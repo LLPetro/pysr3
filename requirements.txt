@@ -1,4 +1,4 @@
-# Runtime dependencies for pysr3 (see pyproject.toml for authoritative versions).
+# Runtime dependencies for sr3kit (see pyproject.toml for authoritative versions).
 numpy>=1.21
 h5py>=3.0
 pyvista>=0.40

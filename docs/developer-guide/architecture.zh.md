@@ -1,6 +1,6 @@
 # 架构
 
-pysr3 遵循三层关注点分离原则：**访问层 → 几何层 → 属性层**。
+sr3kit 遵循三层关注点分离原则：**访问层 → 几何层 → 属性层**。
 
 ```mermaid
 flowchart LR
@@ -20,7 +20,7 @@ flowchart LR
 
 **`GridBuilder` — 几何层。** 一个轻量级分发层(facade)，一次性获取网格数组，然后分发给已注册的 [`GridStrategy`](grid-internals.md)。返回带有 `GlobalCellID`、`PropGlobalID`、`Level`、`I/J/K` 和 `ParentI/J/K` 单元数据的 PyVista `UnstructuredGrid`。
 
-各网格族的策略位于 `pysr3/grid/` 子包中：
+各网格族的策略位于 `sr3kit/grid/` 子包中：
 
 - `grid/geometry.py` — 可复用的纯 NumPy 工具函数（层级推断、网格模式过滤、六/四边形组装、I/J/K 与父 I/J/K、KDIR、活跃单元掩码）。
 - `grid/base.py` — `GridStrategy` 抽象基类及其注册表。添加新网格类型是纯增量操作：编写策略并注册即可。
@@ -64,4 +64,4 @@ sequenceDiagram
 - `GridBuilder.build`、`build_dfn_units`、`build_dfn_segments`
 - `DataMapper.map_prop`
 
-这些接口均从顶层包重导出，并列于 [`pysr3/__init__.py`](../api/index.md)。下划线前缀的成员以及各族策略类均属内部实现。包通过 `pyproject.toml` 安装（`pip install -e .`）；运行时依赖列于 `requirements.txt`。
+这些接口均从顶层包重导出，并列于 [`sr3kit/__init__.py`](../api/index.md)。下划线前缀的成员以及各族策略类均属内部实现。包通过 `pyproject.toml` 安装（`pip install -e .`）；运行时依赖列于 `requirements.txt`。

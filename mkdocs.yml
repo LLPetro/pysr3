@@ -1,8 +1,8 @@
-site_name: pysr3
+site_name: sr3kit
 site_description: A third-party Python reader, grid builder, and property mapper for CMG SR3 files
-site_url: https://LLPetro.github.io/pysr3/
+site_url: https://LLPetro.github.io/sr3kit/
 use_directory_urls: false
-copyright: Copyright &copy; pysr3 contributors
+copyright: Copyright &copy; sr3kit contributors
 
 theme:
   name: material

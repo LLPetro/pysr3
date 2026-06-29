@@ -6,7 +6,7 @@ workflows are built on.
 ## The whole flow
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 sr3_path = "test/cartesian/cartesian.sr3"
 
@@ -51,7 +51,7 @@ print(pres.head())    # labelled DataFrame, one column per (property, time)
 | `"Radial"` | `*GRID *RADIAL` |
 | `"CornerPoint"` | `*GRID *CORNER` (and `*CONVERT-TO-CORNER-POINT`) |
 
-The list is also available at runtime via `pysr3.available_grid_types()`.
+The list is also available at runtime via `sr3kit.available_grid_types()`.
 See [Grid types](concepts/grid-types.md) for which SR3 arrays each one reads.
 
 ## Common `grid_mode` values

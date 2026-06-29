@@ -13,11 +13,11 @@
 - Unit subsystem driven by ``/General/UnitsTable`` + ``/General/UnitConversionTable``
   (``get_unit``, ``convert``, plus ``to_unit=`` on every value-returning method).
 - IGNTGT-based grid-type detection (``detect_grid_type``) used by
-  :class:`pysr3.GridBuilder` to auto-pick a strategy.
+  :class:`sr3kit.GridBuilder` to auto-pick a strategy.
 - Pandas-shaped well/time-series data (``get_well_data``, ``get_timeseries_data``).
 
 The indexer is the single source of truth; downstream classes
-(:class:`pysr3.GridBuilder`, :class:`pysr3.DataMapper`) consume it but never
+(:class:`sr3kit.GridBuilder`, :class:`sr3kit.DataMapper`) consume it but never
 read HDF5 directly.
 """
 
@@ -42,7 +42,7 @@ try:
 except ImportError:
     HAS_PANDAS = False
 
-logger = logging.getLogger("pysr3.indexer")
+logger = logging.getLogger("sr3kit.indexer")
 
 class SR3Indexer:
     """
@@ -923,7 +923,7 @@ class SR3Indexer:
         """Return the file's root grid-type name (or ``None`` if undetectable).
 
         Reads ``/SpatialProperties/<step>/GRID/IGNTGT[0]`` and maps it through
-        :data:`pysr3.grid.type_detect.IGNTGT_CODE_MAP`. Returns ``None`` when
+        :data:`sr3kit.grid.type_detect.IGNTGT_CODE_MAP`. Returns ``None`` when
         ``IGNTGT`` is missing/empty or the code is unknown — letting the caller
         decide whether to raise or fall back.
         """

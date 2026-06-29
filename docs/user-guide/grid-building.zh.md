@@ -4,7 +4,7 @@
 `UnstructuredGrid`，并为每个单元打上 `DataMapper` 后续附加属性值所需的 ID。
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/lgr_nested/lgr_nested.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build(grid_mode="mixed")  # 类型自动从 IGNTGT 检测
@@ -88,7 +88,7 @@ dfn_segments = builder.build_dfn_segments()     # embedded segment quads
 构建好网格后，使用 `DataMapper` 附加结果：
 
 ```python
-from pysr3 import DataMapper
+from sr3kit import DataMapper
 
 df = DataMapper(sr3).map_prop(grid, keywords=["PRES", "SO"], time_steps=[0])
 ```

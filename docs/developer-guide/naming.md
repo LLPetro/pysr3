@@ -1,6 +1,6 @@
 # Naming & glossary
 
-This page is the single source of truth for the vocabulary used in pysr3 — in
+This page is the single source of truth for the vocabulary used in sr3kit — in
 identifiers, parameter names, dict keys, docstrings, log messages, and prose.
 
 Drift hurts readers fast: the same concept under three names sends grep on
@@ -31,7 +31,7 @@ CMG SR3 files contain three related-but-distinct flavors of "step":
 
 ## Property and variable identifiers
 
-CMG calls the columns of `/General/NameRecordTable` "keywords." pysr3
+CMG calls the columns of `/General/NameRecordTable` "keywords." sr3kit
 distinguishes two flavors:
 
 | Concept | Canonical name | Where it appears |
@@ -45,11 +45,11 @@ these. They are too generic and clash with Python builtins or local context.
 
 ## Reservoir-cell terminology
 
-| Concept | Canonical in pysr3 prose | CMG / SR3 convention |
+| Concept | Canonical in sr3kit prose | CMG / SR3 convention |
 |---|---|---|
 | Discretised reservoir volume | **cell** (`n_cells`, `GlobalCellID`, `active_cell_mask`, `total_cells`) | "block" (`BLOCKSIZE`, `BLOCKDEPTH`, `BLOCKPVOL`, `MODBVOL` = "Modified Block Volume") |
 
-**Rule:** in pysr3 docstrings, comments, and prose, say **cell**. PyVista and
+**Rule:** in sr3kit docstrings, comments, and prose, say **cell**. PyVista and
 VTK use "cell" too, so this matches the downstream representation.
 **Exception:** when literally quoting a CMG keyword or NRT Long Name, preserve
 its original wording (e.g. `MODBVOL` is called "Modified Block Volume", not
@@ -103,7 +103,7 @@ identifier; "subgrid" is the safe pick.
 | DataFrame column label | `Unit` |
 | `agg_method` weighted variants | `'bulk_volume_mean'` (MODBVOL-weighted) and `'pore_volume_mean'` (BLOCKPVOL-weighted) |
 
-The unit math itself lives in :mod:`pysr3.units` (`UnitConverter` class plus
+The unit math itself lives in :mod:`sr3kit.units` (`UnitConverter` class plus
 the pure helpers `parse_unit_key` and `parse_dim_tokens`). `SR3Indexer` holds
 one as ``self._units`` and forwards `get_unit` / `convert` to it; the
 collaborator can be tested standalone against synthetic dicts without

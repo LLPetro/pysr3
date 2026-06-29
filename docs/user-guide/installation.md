@@ -5,17 +5,17 @@
 - **Python** ≥ 3.9
 - **NumPy**, **h5py**, **PyVista**, **pandas** (installed automatically)
 
-pysr3 reads SR3 files through `h5py`, builds geometry with NumPy, returns
+sr3kit reads SR3 files through `h5py`, builds geometry with NumPy, returns
 meshes as PyVista `UnstructuredGrid` objects, and tabulates results with
 pandas.
 
 ## Install from source
 
-Until pysr3 is published to PyPI, install it from a checkout:
+Until sr3kit is published to PyPI, install it from a checkout:
 
 ```bash
 git clone <repository-url>
-cd pysr3
+cd sr3kit
 pip install -e .
 ```
 
@@ -36,9 +36,9 @@ pip install -e ".[docs]"   # mkdocs-material, to build this site
 ## Verify
 
 ```python
-import pysr3
-print(pysr3.__version__)
-print(pysr3.available_grid_types())   # ['Cartesian', 'CornerPoint', 'Radial']
+import sr3kit
+print(sr3kit.__version__)
+print(sr3kit.available_grid_types())   # ['Cartesian', 'CornerPoint', 'Radial']
 ```
 
 ## Headless / server rendering

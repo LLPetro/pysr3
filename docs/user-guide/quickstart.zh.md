@@ -5,7 +5,7 @@
 ## 完整流程
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 sr3_path = "test/cartesian/cartesian.sr3"
 
@@ -49,7 +49,7 @@ print(pres.head())    # labelled DataFrame, one column per (property, time)
 | `"Radial"` | `*GRID *RADIAL` |
 | `"CornerPoint"` | `*GRID *CORNER`（及 `*CONVERT-TO-CORNER-POINT`） |
 
-也可在运行时通过 `pysr3.available_grid_types()` 获取列表。
+也可在运行时通过 `sr3kit.available_grid_types()` 获取列表。
 各类型读取的 SR3 数组详见[网格类型](concepts/grid-types.md)。
 
 ## 常用 `grid_mode` 值

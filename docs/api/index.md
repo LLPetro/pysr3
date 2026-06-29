@@ -6,7 +6,7 @@ so it always matches the installed version.
 The public API is re-exported from the top-level package:
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper, available_grid_types
+from sr3kit import SR3Indexer, GridBuilder, DataMapper, available_grid_types
 ```
 
 | Class | Layer | Responsibility |

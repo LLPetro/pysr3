@@ -5,4 +5,4 @@ and returns a PyVista `UnstructuredGrid`. See
 [Grid strategy internals](../developer-guide/grid-internals.md) for how the
 strategies work.
 
-::: pysr3.grid_builder.GridBuilder
+::: sr3kit.grid_builder.GridBuilder

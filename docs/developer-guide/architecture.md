@@ -1,6 +1,6 @@
 # Architecture
 
-pysr3 follows a three-layer separation of concerns: **access → geometry →
+sr3kit follows a three-layer separation of concerns: **access → geometry →
 properties**.
 
 ```mermaid
@@ -28,7 +28,7 @@ dispatches to a registered [`GridStrategy`](grid-internals.md). It returns a
 PyVista `UnstructuredGrid` with `GlobalCellID`, `PropGlobalID`, `Level`,
 `I/J/K`, and `ParentI/J/K` cell data.
 
-The per-family strategies live in the `pysr3/grid/` subpackage:
+The per-family strategies live in the `sr3kit/grid/` subpackage:
 
 - `grid/geometry.py` — reusable pure-NumPy helpers (level inference, grid-mode
   filtering, hex/quad assembly, I/J/K and parent-I/J/K, KDIR, active-cell mask).
@@ -82,7 +82,7 @@ Third-party callers should depend on the public API only:
 - `DataMapper.map_prop`
 
 These are re-exported from the top-level package and listed in
-[`pysr3/__init__.py`](../api/index.md). Underscore-prefixed members and the
+[`sr3kit/__init__.py`](../api/index.md). Underscore-prefixed members and the
 per-family strategy classes are internal. The package installs via
 `pyproject.toml` (`pip install -e .`); runtime dependencies are in
 `requirements.txt`.

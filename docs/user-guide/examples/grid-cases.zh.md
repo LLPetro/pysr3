@@ -5,7 +5,7 @@
 ## Cartesian
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder
+from sr3kit import SR3Indexer, GridBuilder
 
 with SR3Indexer("test/cartesian/cartesian.sr3") as sr3:
     grid = GridBuilder(sr3).build("Cartesian")
@@ -90,7 +90,7 @@ with SR3Indexer("test/dfn_refine/dfn_refine.sr3", eager_list_steps=None) as sr3:
 ## 属性映射
 
 ```python
-from pysr3 import SR3Indexer, GridBuilder, DataMapper
+from sr3kit import SR3Indexer, GridBuilder, DataMapper
 
 with SR3Indexer("test/cartesian/cartesian.sr3", eager_list_steps=None) as sr3:
     grid = GridBuilder(sr3).build("Cartesian")
